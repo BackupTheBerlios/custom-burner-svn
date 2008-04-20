@@ -28,6 +28,8 @@ import threading
 import logging
 import time
 import socket
+import cPickle
+
 from burner import *
 
 singleton = None
@@ -36,7 +38,12 @@ class BurnerManager:
     """This class manages the burners and the burnings. It tracks the
     global state and talks to each burner.
 
+    This class must also save and restore its internal state.
+
     The name is the primary key to access the database."""
+    # The file we save the data into
+    dbFileName = "custom_burner_server.db"
+    
     burners = {} # Indexed by burner name
     burnersLock = None
     isos = [] # A list of dicts {"date", "iso", "committer"}
@@ -63,8 +70,48 @@ class BurnerManager:
         self.burnersLock = threading.RLock()
         self.isosLock = threading.RLock()
         self.logger = logging.getLogger("BurnerManager")
+        # Read saved data
+        try:
+            self.logger.debug("Loading saved data...")
+            f = file(self.dbFileName, "r+")
+            unpickler = cPickle.Unpickler(f)
+            self.burners = unpickler.load()
+            self.isos = unpickler.load()
+            self.isosBeingBurnt = unpickler.load()
+            self.isosBurnt = unpickler.load()
+            f.close()
+        except IOError, e:
+            self.logger.warning("Unable to read saved data from file %s (%s). "
+                                "Starting from scratch." % \
+                                (self.dbFileName, str(e)))
+        except EOFError, e:
+            self.logger.error("Unable to read saved data from file %s "
+                              "(EOFError). Starting from scratch." %
+                              self.dbFileName)
 
 
+    def __saveState(self):
+        """Saves the current state to dbFileName."""
+        self.isosLock.acquire()
+        self.burnersLock.acquire()
+        self.logger.debug("Saving current state...")
+        try:
+            try:
+                dbFile = file(self.dbFileName, "w")
+                pickler = cPickle.Pickler(dbFile)
+                pickler.dump(self.burners)
+                pickler.dump(self.isos)
+                pickler.dump(self.isosBeingBurnt)
+                pickler.dump(self.isosBurnt)
+                pickler.clear_memo()
+                dbFile.close()
+            except IOError, e:
+                self.logger.error("Error while saving state: " + str(e))
+        finally:
+            self.isosLock.release()
+            self.burnersLock.release()
+            
+        
     def getPendingIsos(self):
         """Returns a copy of the list of isos waiting to be burnt.
 
@@ -144,6 +191,7 @@ class BurnerManager:
                                               burnerPort)
         finally:
             self.burnersLock.release()
+        self.__saveState()
 
     def close(self):
         """Close the connection with all the burners.
@@ -158,6 +206,8 @@ class BurnerManager:
                 pass # We popped out all the burners
         finally:
             self.burnersLock.release()
+        self.__saveState()
+
 
     def queueIso(self, iso, committer):
         """Adds an ISO to the queue.
@@ -172,6 +222,7 @@ class BurnerManager:
                               "committer": committer})
         finally:
             self.isosLock.release()
+        self.__saveState()
 
     def reportCompletion(self, burnerName, iso):
         """Reports a successful burn."""
@@ -186,12 +237,14 @@ class BurnerManager:
                     del(self.isosBeingBurnt[i])
                     burner.free = True
             if not burner.free: # Sanity check
-                logger.error("Something VERY strange happened: " \
-                             "the burner " + burnerName + " doesn't seem to " \
-                             "have been working on " + iso + "!")
+                self.logger.error("Something VERY strange happened: "
+                                  "the burner %s doesn't seem to "
+                                  "have been working on %s!" %
+                                  (burnerName, iso))
         finally:
             self.isosLock.release()
             self.burnersLock.release()
+        self.__saveState()
 
     def reportBurningError(self, burnerName, iso):
         """Reports an unsuccessful burn."""
@@ -223,6 +276,7 @@ class BurnerManager:
         finally:
             self.isosLock.release()
             self.burnersLock.release()
+        self.__saveState()
 
     def reportClosingBurner(self, burnerName):
         """Takes a burner out of the list, because it's closing itself."""
@@ -236,7 +290,7 @@ class BurnerManager:
                 self.logger.error("Burner %s was not known!" % burnerName)
         finally:
             self.burnersLock.release()
-
+        self.__saveState()
 
     def refresh(self):
         """Checks if new isos are waiting and tries to assign them to idle
@@ -271,3 +325,4 @@ class BurnerManager:
         finally:
             self.burnersLock.release()
             self.isosLock.release()        
+        self.__saveState()

@@ -37,8 +37,9 @@ class Burner:
     port = None # TCP port on which the burner is waiting for connections
     free = True # True if the burner is idle
     iso = None # The name of the iso being burned
-    committer = None # The name of the committer for the ISO    
-    
+    committer = None # The name of the committer for the ISO
+    logger = None # Our logger
+
     def __init__(self, name, ip, port):
         """Constructor.
 
@@ -51,6 +52,18 @@ class Burner:
         self.port = int(port)
         self.free = True
         self.logger = logging.getLogger("Burner(%s)" % self.name)
+
+
+    def __getstate__(self):
+        """Return the state of this object, for serialization."""
+        odict = self.__dict__.copy()
+        del odict["logger"]
+        return odict
+
+    def __setstate__(self, idict):
+        self.__dict__.update(idict)
+        self.logger = logging.getLogger("Burner(%s)" % self.name)
+
 
     def assignIso(self, date, iso, committer):
         """Tries to assign an iso to the burner.
@@ -70,6 +83,8 @@ class Burner:
             if data == common.MSG_ACK:
                 retval = True # Succesful!
                 self.free = False
+                self.iso = iso
+                self.committer = committer
             elif data == common.MSG_NO_SUCH_ISO:
                 self.logger.debug("No such ISO: %s" % iso)
                 retval = False

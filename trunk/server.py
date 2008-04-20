@@ -130,7 +130,7 @@ if len(args) > 0:
     sys.exit(-1)
 
 
-burnerManager = BurnerManager()
+burnerManager = BurnerManager.instance()
 try:
     srv = CustomBurnerServer(opts.directory, opts.port)
 except socket.error, e:
