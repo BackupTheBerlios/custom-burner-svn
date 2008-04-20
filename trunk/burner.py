@@ -29,6 +29,7 @@ import os.path
 import logging
 import socket
 import SocketServer
+import optparse
 import common
 
 quitting = False
@@ -49,7 +50,7 @@ def handshake(connection):
 class CustomBurnerClient:
     """A burner."""
     # TCP port to listen on
-    TCP_PORT = 1235
+    port = None
 
     # Server IP address
     serverIP = None
@@ -72,6 +73,8 @@ class CustomBurnerClient:
         All the information about the server and this burner are taken from
         object attributes."""
         try:
+            self.logger.info("Connecting to %s:%d" % \
+                             (self.serverIP, self.serverPort))
             connection = common.RequestMaker(self.serverIP, self.serverPort)
             handshake(connection)
             connection.send(common.MSG_CLIENT_REGISTER + "\n")
@@ -80,7 +83,7 @@ class CustomBurnerClient:
                 raise common.BurnerException, \
                       "Server doesn't want to register us: \"%s\"" % data
             connection.send(self.name + "\n")
-            connection.send(str(self.TCP_PORT) + "\n")
+            connection.send(str(self.port) + "\n")
             data = connection.readLine()
             if data != common.MSG_ACK:
                 raise common.BurnerException, \
@@ -150,7 +153,8 @@ class CustomBurnerClient:
                     self.logger.error(e)
                 self.isoToBurn = False
 
-    def __init__(self, name, isoDirectory, burnCmd, serverIP, serverPort=1234):
+    def __init__(self, name, isoDirectory, burnCmd, port, serverIP,
+                 serverPort=1234):
         """Initializes the client.
 
         isoDirectory: path to the directory containing the ISO images.
@@ -159,12 +163,14 @@ class CustomBurnerClient:
         """
         self.name = name
         self.isoDirectory = os.path.expanduser(isoDirectory)
+        self.port = port
         self.serverIP = serverIP
         self.serverPort = serverPort
         self.logger = logging.getLogger("CustomBurnerClient")
         self.logger.info("Starting")
         self.registerToServer()
-        self.tcpServer = TCPServer(("localhost", self.TCP_PORT),
+        self.logger.debug("Starting to listen on port %d" % self.port)
+        self.tcpServer = TCPServer(("localhost", self.port),
                                    RequestHandler)
         self.burnCmd = burnCmd
         self.isoToBurn = False
@@ -219,6 +225,40 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
                     datefmt='%d %b %Y %H:%M:%S')
 
-burner = CustomBurnerClient("Toaster", "~/temp/burner/shared", "sleep 10; ls %s",
-                            "127.0.0.1")
+
+# Cmd-line arguments
+parser = optparse.OptionParser()
+# Default values
+parser.set_defaults(name="Toaster",
+                    command="wodim driveropts=burnfree -data %s",
+                    server="127.0.0.1",
+                    directory=".",
+                    port=1235,
+                    serverport=1234)
+parser.add_option("-n", "--name", dest="name", help="sets the burner name")
+parser.add_option("-d", "--dir", dest="directory",
+                  help="specifies the directory containing the isos")
+parser.add_option("-c", "--cmd", dest="command",
+                  help="specifies the command to burn an iso named %s")
+parser.add_option("-p", "--port", dest="port", type="int",
+                  help="specifies the TCP port for listening")
+parser.add_option("-s", "--server", dest="server",
+                  help="specifies the hostname or IP address of the server")
+parser.add_option("-t", "--serverport", dest="serverport", type="int",
+                  help="specifies the server'sTCP port")
+(opts, args) = parser.parse_args()
+
+if len(args) > 0:
+    # We don't want cmdline arguments
+    parser.print_help()
+    sys.exit(-1)
+
+try:
+    burner = CustomBurnerClient(opts.name, opts.directory, opts.command,
+                                opts.port, opts.server, opts.serverport)
+except socket.error, e:
+    # This may occur during server start
+    sys.stderr.write("Socket error: %s\n" % str(e))
+    sys.exit(-1)
+
 burner.live()

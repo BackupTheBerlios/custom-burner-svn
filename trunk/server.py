@@ -30,6 +30,7 @@ import os.path
 import logging
 import threading
 import socket
+import optparse
 import common
 from server.user_interface import *
 from server.network import *
@@ -42,7 +43,7 @@ class CustomBurnerServer:
     MAX_CLIENTS = 10
 
     # TCP port to listen on
-    TCP_PORT = 1234
+    port = None
 
     # Our ISO database object
     isoDatabase = None
@@ -56,16 +57,19 @@ class CustomBurnerServer:
     # Are we going to exit? (the threads look at this variable)
     quitting = False
     
-    def __init__(self, isoDirectory):
+    def __init__(self, isoDirectory, port):
         """Initializes the server.
 
         isoDirectory: path to the directory containing the ISO images.
         """
+        self.port = port
         self.logger = logging.getLogger("CustomBurnerServer")
         self.logger.info("Starting...")
         self.isoDatabase = IsoDatabase(isoDirectory)
         self.isoDatabase.findImages()
-        self.tcpServer = TCPServer(("localhost", self.TCP_PORT),
+        self.logger.info("Starting server on %s:%d" % \
+                         ("localhost", self.port))
+        self.tcpServer = TCPServer(("localhost", self.port),
                                    RequestHandler)
         self.ui = UserInterface(self.isoDatabase, burnerManager)
         self.listener = NetworkServerThread(self.tcpServer, self)
@@ -109,6 +113,29 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
                     datefmt='%d %b %Y %H:%M:%S')
 
+# Cmd-line arguments
+parser = optparse.OptionParser()
+# Default values
+parser.set_defaults(directory=".",
+                    port=1234)
+parser.add_option("-d", "--dir", dest="directory",
+                  help="specifies the directory containing the isos")
+parser.add_option("-p", "--port", dest="port", type="int",
+                  help="specifies the TCP port for listening")
+(opts, args) = parser.parse_args()
+
+if len(args) > 0:
+    # We don't want cmdline arguments
+    parser.print_help()
+    sys.exit(-1)
+
+
 burnerManager = BurnerManager()
-srv = CustomBurnerServer("~/temp/burner/shared")
+try:
+    srv = CustomBurnerServer(opts.directory, opts.port)
+except socket.error, e:
+    # This may occur during server start
+    sys.stderr.write("Socket error: %s\n" % str(e))
+    sys.exit(-1)
+
 srv.live()
