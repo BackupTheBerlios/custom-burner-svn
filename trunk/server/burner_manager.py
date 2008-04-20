@@ -70,8 +70,12 @@ class BurnerManager:
 
         The list is in the same form as the local attribute isos."""
         retval = []
-        for iso in self.isos:
-            retval.append(dict(iso))
+        self.isosLock.acquire()
+        try:
+            for iso in self.isos:
+                retval.append(dict(iso))
+        finally:
+            self.isosLock.release()
         return retval
 
     def getBurntIsos(self):
@@ -79,30 +83,65 @@ class BurnerManager:
 
         The list is in the same form as the local attribute isosBurnt."""
         retval = []
-        for iso in self.isosBurnt:
-            retval.append(dict(iso))
+        self.isosLock.acquire()
+        try:
+            for iso in self.isosBurnt:
+                retval.append(dict(iso))
+        finally:
+            self.isosLock.release()
         return retval
+
 
     def getIsosBeingBurnt(self):
         """Returns a copy of the list of isos being burnt.
 
         The list is in the same form as the local attribute isosBeingBurnt."""
         retval = []
-        for iso in self.isosBeingBurnt:
-            retval.append(dict(iso))
+        self.isosLock.acquire()
+        try:
+            for iso in self.isosBeingBurnt:
+                retval.append(dict(iso))
+        finally:
+            self.isosLock.release()
         return retval
+
+
+    def getBurners(self):
+        """Returns a list of the registered burners.
+
+        The list contains dict's with the following fields:
+        \"name\"      : name of the burner;
+        \"ip\"        : IP address
+        \"port\"      : TCP port
+        \"iso\"       : iso the burner is currently burning (or None)
+        \"committer\" : the committer of the iso (or None)"""
+        retval = []
+        self.burnersLock.acquire()
+        try:
+            for burner in self.burners.values():
+                entry = {"name":burner.name, "ip":burner.ip, "port":burner.port}
+                if burner.free:
+                    entry["iso"] = entry["committer"] = None
+                else:
+                    entry["iso"] = burner.iso
+                    entry["committer"] = burner.committer                    
+                retval.append(entry)
+        finally:
+            self.burnersLock.release()
+        return retval
+
 
     def registerBurner(self, burnerName, burnerIP, burnerPort):
         """Register a burner."""
         self.burnersLock.acquire()
         try:
-            # We add the burner to the list only if it's not in there yet
-            if not self.burners.has_key(burnerName):
-                self.burners[burnerName] = Burner(burnerName, burnerIP,
-                                                  burnerPort)
-            else:
+            # If another burner with the same name was registered, we
+            # warn the user and overwrite it
+            if self.burners.has_key(burnerName):
                 self.logger.warning("Burner %s is already registered" %
                                     burnerName)
+            self.burners[burnerName] = Burner(burnerName, burnerIP,
+                                              burnerPort)
         finally:
             self.burnersLock.release()
 
@@ -184,6 +223,20 @@ class BurnerManager:
         finally:
             self.isosLock.release()
             self.burnersLock.release()
+
+    def reportClosingBurner(self, burnerName):
+        """Takes a burner out of the list, because it's closing itself."""
+        self.burnersLock.acquire()
+        try:
+            self.logger.debug("Forgetting burner %s" % burnerName)
+            try:
+                del(self.burners[burnerName])
+            except KeyError:
+                # Weird, but may happen during debugging
+                self.logger.error("Burner %s was not known!" % burnerName)
+        finally:
+            self.burnersLock.release()
+
 
     def refresh(self):
         """Checks if new isos are waiting and tries to assign them to idle

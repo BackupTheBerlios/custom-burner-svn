@@ -117,6 +117,11 @@ class RequestHandler(common.RequestHandler):
                 self.logger.info(("Peer %s report error while burning %s " \
                                   "for %s") % (burnerName, isoName, committer))
                 self.burnerManager.reportBurningError(burnerName, isoName)
+            elif data == common.MSG_CLOSING:
+                burnerName = self.readLine()
+                self.logger.info("Burner %s is leaving." % burnerName)
+                self.request.send(common.MSG_ACK + "\n")
+                self.burnerManager.reportClosingBurner(burnerName)
             else:
                 raise common.BurnerException, \
                       "Strange data received from client: \"%s\"" % data

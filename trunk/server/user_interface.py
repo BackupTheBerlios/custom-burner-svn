@@ -89,6 +89,7 @@ class UserInterface:
             print "No isos burnt."
         print
 
+
     def __listWorkedIsos(self):
         """Lists the isos that are being burnt."""
         isos = self.burnerManager.getIsosBeingBurnt()
@@ -102,6 +103,22 @@ class UserInterface:
         print
     
 
+    def __listBurners(self):
+        """Lists the burners registered to this server."""
+        burners = self.burnerManager.getBurners()
+        print
+        if len(burners) > 0:
+            print "Burners:", len(burners)
+            for burner in burners:
+                print burner["name"], burner["ip"] + ":" + str(burner["port"]),
+                if burner["iso"] != None:
+                    print "burning", burner["iso"], "for", burner["committer"]
+                else:
+                    print "idle"
+        else:
+            print "No burners registered."
+        print
+
     def live(self):
         """Ask user for commands. Return when user wants to quit."""
         quitting = False
@@ -112,6 +129,7 @@ class UserInterface:
             print "l : list queue of pending isos"
             print "w : list isos being burnt"
             print "d : list burnt isos"
+            print "b : list burners"
             print "r : refresh queues, check for free burners and " \
                   "unassigned jobs."
             print "q : quit"
@@ -126,6 +144,8 @@ class UserInterface:
                 self.__listWorkedIsos()                
             elif c == "d":
                 self.__listBurntIsos()
+            elif c == "b":
+                self.__listBurners()
             elif c == "r":
                 self.burnerManager.refresh()
             elif c == "q":

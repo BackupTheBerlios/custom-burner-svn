@@ -153,6 +153,29 @@ class CustomBurnerClient:
                     self.logger.error(e)
                 self.isoToBurn = False
 
+    def sayGoodbye(self):
+        """Say good bye to server.
+
+        You should call this if this client wants to quit before the
+        server is closed."""
+        try:
+            self.logger.info("Saying goodbye to server.")
+            connection = common.RequestMaker(self.serverIP,
+                                             self.serverPort)
+            handshake(connection)
+            connection.send(common.MSG_CLOSING + "\n")
+            connection.send(self.name + "\n")
+            data = connection.readLine()
+            if data != common.MSG_ACK:
+                self.logger.warning("Server didn't answer Ok to our goodbye, "
+                                    "but \"%s\" instead" % data)
+            connection.close()
+        except common.BurnerException, e:
+            self.logger.error(e)
+        except socket.error, e:
+            self.logger.error(e)
+                
+
     def __init__(self, name, isoDirectory, burnCmd, port, serverIP,
                  serverPort=1234):
         """Initializes the client.
@@ -261,4 +284,8 @@ except socket.error, e:
     sys.stderr.write("Socket error: %s\n" % str(e))
     sys.exit(-1)
 
-burner.live()
+try:
+    burner.live()
+except KeyboardInterrupt:
+    # User killed this application, but the server is still running.
+    burner.sayGoodbye()
