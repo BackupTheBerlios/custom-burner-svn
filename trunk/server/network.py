@@ -82,15 +82,27 @@ class RequestHandler(common.RequestHandler):
     The server side protocol is implemented here.
     """
 
+
     def greetPeer(self):
         """Receives self-introducing data from a burner and registers it."""
         peerName = self.readLine()
         peerPort = self.readLine()
+        self.request.send(common.MSG_ACK + "\n")
+        data = self.readLine()
+        if data != common.MSG_CLIENT_HAS_ISOS:
+            raise common.BurnerException("Burner registration for %s failed: "
+                                         "burner didn't list its isos.")
+        isosNum = int(self.readLine())
+        isos = []
+        for i in range(isosNum):
+            isos.append(self.readLine())
+        self.request.send(common.MSG_ACK + "\n")
         peerIP = self.request.getpeername()[0]
         self.logger.info("Registering burner %s, IP: %s, port: %s" %
                          (peerName, peerIP, peerPort))
-        self.burnerManager.registerBurner(peerName, peerIP, peerPort)
-        self.request.send(common.MSG_ACK + "\n")
+        self.logger.debug("It has the following isos: %s" % str(isos))
+        self.burnerManager.registerBurner(peerName, peerIP, peerPort, isos)
+
 
     def handle(self):
         """Handle the connection: greet the peer."""

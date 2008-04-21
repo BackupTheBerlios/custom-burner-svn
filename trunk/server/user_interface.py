@@ -29,10 +29,9 @@ import sys
 class UserInterface:
     """The class that asks input from the user."""
 
-    def __init__(self, isoDatabase, burnerManager):
+    def __init__(self, burnerManager):
         """Constructor.
         """
-        self.isoDatabase = isoDatabase
         self.burnerManager = burnerManager
 
     def __isoMenu(self):
@@ -41,9 +40,13 @@ class UserInterface:
         while not endMenu:
             print "Select an ISO from the list:"
             i = 0
-            isoNum = len(self.isoDatabase.isos)
+            isos = self.burnerManager.getIsos()
+            isoNum = len(isos)
+            if isoNum == 0:
+                print "No isos available! You need to connect a burner!"
+                return
             for i in range(isoNum):
-                print "%2d: %s" % (i + 1, self.isoDatabase.isos[i])
+                print "%2d: %s" % (i + 1, isos[i])
             print
             print "Your selection (0 exits):",
             try:
@@ -51,7 +54,7 @@ class UserInterface:
                 if temp == 0:
                     endMenu = True
                 else:
-                    iso = self.isoDatabase.isos[temp - 1]
+                    iso = isos[temp - 1]
                     print "For whom? ",
                     committer = sys.stdin.readline().strip()
                     print

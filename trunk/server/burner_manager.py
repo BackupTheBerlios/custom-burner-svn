@@ -35,18 +35,18 @@ from burner import *
 singleton = None
 
 class BurnerManager:
-    """This class manages the burners and the burnings. It tracks the
-    global state and talks to each burner.
+    """This class manages the burners and the burnings. It tracks the global
+    state and talks to each burner. It knows all the isos the burners have.
 
     This class must also save and restore its internal state.
 
     The name is the primary key to access the database."""
     # The file we save the data into
     dbFileName = "custom_burner_server.db"
-    
     burners = {} # Indexed by burner name
     burnersLock = None
-    isos = [] # A list of dicts {"date", "iso", "committer"}
+    isos = set() # A set of all the isos our burners have
+    pendingIsos = [] # A list of dicts {"date", "iso", "committer"}
     # A list of dicts {"date", "iso", "committer", "burner"}
     isosBeingBurnt = []
     isosBurnt = [] # See isosBeingBurnt
@@ -76,10 +76,11 @@ class BurnerManager:
             f = file(self.dbFileName, "r+")
             unpickler = cPickle.Unpickler(f)
             self.burners = unpickler.load()
-            self.isos = unpickler.load()
+            self.pendingIsos = unpickler.load()
             self.isosBeingBurnt = unpickler.load()
-            self.isosBurnt = unpickler.load()
+            self.isosBurnt = unpickler.load()            
             f.close()
+            self.__rebuildIsoList()
         except IOError, e:
             self.logger.warning("Unable to read saved data from file %s (%s). "
                                 "Starting from scratch." % \
@@ -100,7 +101,7 @@ class BurnerManager:
                 dbFile = file(self.dbFileName, "w")
                 pickler = cPickle.Pickler(dbFile)
                 pickler.dump(self.burners)
-                pickler.dump(self.isos)
+                pickler.dump(self.pendingIsos)
                 pickler.dump(self.isosBeingBurnt)
                 pickler.dump(self.isosBurnt)
                 pickler.clear_memo()
@@ -110,8 +111,20 @@ class BurnerManager:
         finally:
             self.isosLock.release()
             self.burnersLock.release()
-            
-        
+
+    def getIsos(self):
+        """Returns a sorted list containing all the isos all the burners 
+        have."""
+        retval = []
+        self.isosLock.acquire()
+        try:
+            retval = list(self.isos)
+            retval.sort()
+        finally:
+            self.isosLock.release()
+        return retval
+
+
     def getPendingIsos(self):
         """Returns a copy of the list of isos waiting to be burnt.
 
@@ -119,7 +132,7 @@ class BurnerManager:
         retval = []
         self.isosLock.acquire()
         try:
-            for iso in self.isos:
+            for iso in self.pendingIsos:
                 retval.append(dict(iso))
         finally:
             self.isosLock.release()
@@ -178,8 +191,8 @@ class BurnerManager:
         return retval
 
 
-    def registerBurner(self, burnerName, burnerIP, burnerPort):
-        """Register a burner."""
+    def registerBurner(self, burnerName, burnerIP, burnerPort, isos):
+        """Register a burner and its isos."""
         self.burnersLock.acquire()
         try:
             # If another burner with the same name was registered, we
@@ -188,10 +201,12 @@ class BurnerManager:
                 self.logger.warning("Burner %s is already registered" %
                                     burnerName)
             self.burners[burnerName] = Burner(burnerName, burnerIP,
-                                              burnerPort)
+                                              burnerPort, isos)
         finally:
             self.burnersLock.release()
+        self.__rebuildIsoList()        
         self.__saveState()
+
 
     def close(self):
         """Close the connection with all the burners.
@@ -218,11 +233,12 @@ class BurnerManager:
         try:
             self.logger.debug("Adding %s for %s to the queue." %
                               (iso, committer))
-            self.isos.append({"date": time.asctime(), "iso": iso,
+            self.pendingIsos.append({"date": time.asctime(), "iso": iso,
                               "committer": committer})
         finally:
             self.isosLock.release()
         self.__saveState()
+
 
     def reportCompletion(self, burnerName, iso):
         """Reports a successful burn."""
@@ -246,6 +262,7 @@ class BurnerManager:
             self.burnersLock.release()
         self.__saveState()
 
+
     def reportBurningError(self, burnerName, iso):
         """Reports an unsuccessful burn."""
         self.isosLock.acquire()
@@ -262,7 +279,7 @@ class BurnerManager:
                         # Found: we put it into the head of the waiting queue.
                         # This will have the additional "burner" field, that
                         # we will easily ignore.
-                        self.isos.insert(0, self.isosBeingBurnt[i])
+                        self.pendingIsos.insert(0, self.isosBeingBurnt[i])
                         del(self.isosBeingBurnt[i])
                         burner.free = True
                 if not burner.free: # Sanity check
@@ -278,7 +295,8 @@ class BurnerManager:
             self.burnersLock.release()
         self.__saveState()
 
-    def reportClosingBurner(self, burnerName):
+ 
+   def reportClosingBurner(self, burnerName):
         """Takes a burner out of the list, because it's closing itself."""
         self.burnersLock.acquire()
         try:
@@ -290,7 +308,24 @@ class BurnerManager:
                 self.logger.error("Burner %s was not known!" % burnerName)
         finally:
             self.burnersLock.release()
+        self.__rebuildIsoList()
         self.__saveState()
+
+
+    def __rebuildIsoList(self):
+        """Rebuilds isos merging all the isos that the burners have."""
+        self.burnersLock.acquire()
+        self.isosLock.acquire()
+        try:
+            self.isos = set()
+            for burner in self.burners.values():
+                self.isos.update(burner.isos)
+                # for iso in burner.isos:
+                #    self.isos.add(iso)
+        finally:
+            self.burnersLock.release()
+            self.isosLock.release()
+        
 
     def refresh(self):
         """Checks if new isos are waiting and tries to assign them to idle
@@ -298,11 +333,11 @@ class BurnerManager:
         self.isosLock.acquire()
         self.burnersLock.acquire()
         try:
-            if len(self.isos) > 0:
+            if len(self.pendingIsos) > 0:
                 # We have pending isos!
                 done = False
-                for i in range(len(self.isos)):
-                    isoData = self.isos[i]
+                for i in range(len(self.pendingIsos)):
+                    isoData = self.pendingIsos[i]
                     burnerIterator = self.burners.itervalues()
                     try:
                         while not done:
@@ -316,7 +351,7 @@ class BurnerManager:
                                                       burner.name))
                                     isoData["burner"] = burner.name
                                     self.isosBeingBurnt.append(isoData)
-                                    del(self.isos[i])
+                                    del(self.pendingIsos[i])
                                     done = True
                     except StopIteration:
                         pass # We finished iterating over burners

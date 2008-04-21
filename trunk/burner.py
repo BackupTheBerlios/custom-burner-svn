@@ -67,6 +67,13 @@ class CustomBurnerClient:
     # Our name
     name = None
 
+    # List of the isos we have
+    isos = []
+
+    # Directory containing our isos
+    isoDirectory = None
+
+
     def registerToServer(self):
         """Register to a burner server.
 
@@ -89,6 +96,14 @@ class CustomBurnerClient:
                 raise common.BurnerException, \
                       "Server doesn't want to accept our registration: \"%s\"" \
                       % data
+            connection.send(common.MSG_CLIENT_HAS_ISOS + "\n")
+            connection.send(str(len(self.isos)) + "\n")
+            for iso in self.isos:
+                connection.send(iso + "\n")
+            data = connection.readLine()
+            if data != common.MSG_ACK:
+                raise common.BurnerException, \
+                      "Server doesn't like our isos: \"%s\"" % data
             self.logger.info("Registered to server.")
             connection.close()
         except common.BurnerException, e:
@@ -98,16 +113,16 @@ class CustomBurnerClient:
             self.logger.error(e)
             sys.exit(1)
 
+
     def hasIso(self, name):
         """Return True if this burner has a copy of an iso file."""
-        try:
-            f = file(os.path.join(self.isoDirectory, name), "r")
-            f.close()
-        except IOError:
+        if name in self.isos:
+            return True
+        else:
             self.logger.debug("Server asked for ISO %s, that I don't have." %
                               name)                              
             return False
-        return True
+
 
     def queue(self, date, iso, committer):
         """Get ready to burn."""
@@ -174,6 +189,14 @@ class CustomBurnerClient:
             self.logger.error(e)
         except socket.error, e:
             self.logger.error(e)
+
+
+    def __findImages(self):
+        """Scans self.isodirectory for image files.
+
+        The local variable isos is populated."""
+        self.isos = os.listdir(os.path.expanduser(self.isoDirectory))
+        self.logger.debug("I can burn the following isos:" + str(self.isos))
                 
 
     def __init__(self, name, isoDirectory, burnCmd, port, serverIP,
@@ -191,6 +214,7 @@ class CustomBurnerClient:
         self.serverPort = serverPort
         self.logger = logging.getLogger("CustomBurnerClient")
         self.logger.info("Starting")
+        self.__findImages()
         self.registerToServer()
         self.logger.debug("Starting to listen on port %d" % self.port)
         self.tcpServer = TCPServer(("localhost", self.port),

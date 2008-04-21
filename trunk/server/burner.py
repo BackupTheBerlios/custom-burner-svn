@@ -37,20 +37,23 @@ class Burner:
     port = None # TCP port on which the burner is waiting for connections
     free = True # True if the burner is idle
     iso = None # The name of the iso being burned
+    isos = [] # The isos we can burn
     committer = None # The name of the committer for the ISO
     logger = None # Our logger
 
-    def __init__(self, name, ip, port):
+    def __init__(self, name, ip, port, isos):
         """Constructor.
 
         name: the name of the burner.
         ip: the IP address.
         port: the TCP port the burner will wait for connections on.
+        isos: a list of the isos this burner can burn.
         """
         self.name = name
         self.ip = ip
         self.port = int(port)
         self.free = True
+        self.isos = isos
         self.logger = logging.getLogger("Burner(%s)" % self.name)
 
 
@@ -59,6 +62,7 @@ class Burner:
         odict = self.__dict__.copy()
         del odict["logger"]
         return odict
+
 
     def __setstate__(self, idict):
         self.__dict__.update(idict)

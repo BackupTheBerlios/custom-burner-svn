@@ -45,9 +45,6 @@ class CustomBurnerServer:
     # TCP port to listen on
     port = None
 
-    # Our ISO database object
-    isoDatabase = None
-
     # Our TCP server object
     tcpServer = None
 
@@ -65,13 +62,11 @@ class CustomBurnerServer:
         self.port = port
         self.logger = logging.getLogger("CustomBurnerServer")
         self.logger.info("Starting...")
-        self.isoDatabase = IsoDatabase(isoDirectory)
-        self.isoDatabase.findImages()
         self.logger.info("Starting server on %s:%d" % \
                          ("localhost", self.port))
         self.tcpServer = TCPServer(("localhost", self.port),
                                    RequestHandler)
-        self.ui = UserInterface(self.isoDatabase, burnerManager)
+        self.ui = UserInterface(burnerManager)
         self.listener = NetworkServerThread(self.tcpServer, self)
 
     def live(self):
@@ -81,30 +76,6 @@ class CustomBurnerServer:
         self.quitting = True
         self.listener.join()
         burnerManager.close()
-
-
-class IsoDatabase:
-    """The repository of ISO images.
-
-    This classes knows which files are available and keeps the queues.
-    """
-
-    isos = [] # List of the ISO images we can burn
-
-    def findImages(self):
-        """Scans ISO_DIR for image files.
-
-        The local variable isos is populated."""
-        self.isos = os.listdir(os.path.expanduser(self.ISO_DIR))
-
-    def __init__(self, isoDirectory):
-        """Constructor.
-
-        isoDirectory: the directory that contains the ISO images we want
-        to serve.
-        """
-        self.ISO_DIR = isoDirectory
-        self.findImages()
 
 
 

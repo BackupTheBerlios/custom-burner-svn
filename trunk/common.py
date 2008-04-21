@@ -105,6 +105,8 @@ MSG_SERVER_GREETING = "Custom Burner Server"
 MSG_CLIENT_GREETING = "Custom Burner Client"
 # Client asks to be registered
 MSG_CLIENT_REGISTER = "Please register me"
+# Client is going to list its isos
+MSG_CLIENT_HAS_ISOS = "My isos are:"
 # Server asks the burner to burn something
 MSG_REQUEST_BURN = "Please burn"
 # The burner reports success
