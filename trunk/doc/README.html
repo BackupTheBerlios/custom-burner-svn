@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>Custom Burner - README</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link href="stili.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+<h1>Custom Burner - README</h1>
+
+<p>This program can be used to burn CDs on many computers, each with one
+CD burner.</p>
+
+<p>It consists of a client and a server program. They can run both on the
+same machine, so that the server can burn CDs too.</p>
+
+<p>This program is thought to be useful in a CD-Burning party, as in Free
+Software days (LinuxDay, etc.). It should provide a dumb queue for
+burning lots of CDs for lots of people.</p>
+
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li>Python 2.4 with threading support;
+
+<li>ISOs on the clients;</li>
+
+<li>a program to burn ISOs from command line, ready to go (e.g. cdrecord).</li>
+</ul>
+
+
+<h2>Installation</h2>
+
+<ol>
+<li>Decompress the archive in your favorite directory</li>
+
+<li>Start the server</li>
+
+<li>Start the clients</li>
+</ol>
+
+
+<h2>The server</h2>
+
+<p>The server's job is to manage the ISO queue. You must use it to type
+in the images to burn, and it will take care of queuing them, keeping
+track of which client is working and feeding jobs to the idle ones.</p>
+
+<p>Logging messages will tell you if clients accept the jobs, and if they
+succeed to burn them.</p>
+
+<p>For each job, you must supply two information: the name of the file to
+burn and the name of the person that CD is for.</p>
+
+<p>The program can be configured using command-line parameters. Run it with
+the option "<tt>--help</tt>" for more information.</p>
+
+
+<h2>The client</h2>
+
+<p>The client program connects to the server and receives job submissions
+from it.</p>
+
+<p>When it is started, it scans the local directory containing the ISOs and
+sends a list to the server.</p>
+
+<p>When the client receives a job request, it starts the burning program
+that you specified. That program must return 0 if everything went ok.</p>
+
+<p>The program can be configured using command-line parameters. Run it with
+the option "<tt>--help</tt>" for more information.</p>
+
+<p><b>Important</b>: please make sure that the ISOs are stored on the
+client's local hard drive. You should not burn ISOs from a network shared
+directory, because you may incur into buffer underruns and other problems:
+networks are often much slower than CD burners.</p>
+
+
+<h2>Miscellaneous</h2>
+
+<p>If you like this program, and would like to contribute, please feel
+free to do it! But if you want to look at the code, please know I'm
+no Python hacker... :-) Please start reading the <a
+href="README.dev.html">developer README</a></p>
+
+<p>Please note that I take no responsibility and/or liability for any use
+you could make of this program. Please don't use it to do anything
+illegal.</p>
+
+
+<h2>Contact information</h2>
+
+<p>You can contact me for any request or information:</p>
+
+<p>Arrigo Marchiori<br />
+ardovm at yahoo dot it<br />
+<a href="http://rigo.altervista.org">http://rigo.altervista.org</a></p>
+
+<p>This project's homepage is at <a
+href="http://custom-burner.berlios.de">http://custom-burner.berlios.de</a></p>
+
+
+<h2>License</h2>
+
+<p>This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation; either version 2 of the License, or (at your option)
+any later version.</p>
+
+<p>This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License in
+the file `COPYING' for more details.</p>
+
+<hr />
+
+<p><a href="http://developer.berlios.de">
+<img src="http://developer.berlios.de/bslogo.php?group_id=5521" width="124"
+height="32" alt="BerliOS Logo" /></a>
+<a href="http://validator.w3.org/check?uri=referer"><img
+src="http://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0!"
+height="31" width="88" style="border:0" /></a> <a
+href="http://jigsaw.w3.org/css-validator/check/referer"><img
+style="border:0;width:88px;height:31px"
+src="http://jigsaw.w3.org/css-validator/images/vcss" alt="Valid CSS!"
+/></a></p>
+
+</body>
+</html>
