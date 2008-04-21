@@ -67,8 +67,8 @@ class BurnerManager:
     instance = staticmethod(instance)
 
     def __init__(self):
-        self.burnersLock = threading.RLock()
-        self.isosLock = threading.RLock()
+        self.burnersLock = threading.Lock()
+        self.isosLock = threading.Lock()
         self.logger = logging.getLogger("BurnerManager")
         # Read saved data
         try:
@@ -252,6 +252,7 @@ class BurnerManager:
                     self.isosBurnt.append(self.isosBeingBurnt[i])
                     del(self.isosBeingBurnt[i])
                     burner.free = True
+                    break;
             if not burner.free: # Sanity check
                 self.logger.error("Something VERY strange happened: "
                                   "the burner %s doesn't seem to "
@@ -282,6 +283,7 @@ class BurnerManager:
                         self.pendingIsos.insert(0, self.isosBeingBurnt[i])
                         del(self.isosBeingBurnt[i])
                         burner.free = True
+                        break;
                 if not burner.free: # Sanity check
                     self.logger.error("Something VERY strange happened: "
                                       "the burner %s doesn't seem to have "
@@ -296,7 +298,7 @@ class BurnerManager:
         self.__saveState()
 
  
-   def reportClosingBurner(self, burnerName):
+    def reportClosingBurner(self, burnerName):
         """Takes a burner out of the list, because it's closing itself."""
         self.burnersLock.acquire()
         try:
@@ -335,12 +337,11 @@ class BurnerManager:
         try:
             if len(self.pendingIsos) > 0:
                 # We have pending isos!
-                done = False
-                for i in range(len(self.pendingIsos)):
-                    isoData = self.pendingIsos[i]
+                for isoData in self.pendingIsos[:]:
+                    isoAssigned = False
                     burnerIterator = self.burners.itervalues()
                     try:
-                        while not done:
+                        while not isoAssigned:
                             burner = burnerIterator.next()
                             if burner.free:
                                 if burner.assignIso(isoData["date"],
@@ -349,14 +350,14 @@ class BurnerManager:
                                     self.logger.info("ISO %s assigned to %s." %
                                                      (isoData["iso"],
                                                       burner.name))
+                                    self.pendingIsos.remove(isoData)
                                     isoData["burner"] = burner.name
                                     self.isosBeingBurnt.append(isoData)
-                                    del(self.pendingIsos[i])
-                                    done = True
+                                    isoAssigned = True
                     except StopIteration:
-                        pass # We finished iterating over burners
-                    if done:
-                        break
+                        # We finished iterating over burners
+                        self.logger.warning("Could not assign %s to anybody." %
+                                            isoData["iso"])
         finally:
             self.burnersLock.release()
             self.isosLock.release()        
