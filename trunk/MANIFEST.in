@@ -1,0 +1,2 @@
+recursive-include doc *.html COPYING
+include MANIFEST.in
