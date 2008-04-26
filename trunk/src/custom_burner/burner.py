@@ -1,7 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Custom Burner client
+"""Custom Burner client main module
 Copyright 2008 Arrigo Marchiori
 This program is distributed under the terms of the GNU General Public
 License, as specified in the COPYING file.
@@ -268,48 +267,51 @@ class RequestHandler(common.RequestHandler):
 
 
 ############
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
-                    datefmt='%d %b %Y %H:%M:%S')
+def BurnerMain():
+    """Main"""
+    global burner
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                        datefmt='%d %b %Y %H:%M:%S')
 
 
-# Cmd-line arguments
-parser = optparse.OptionParser()
-# Default values
-parser.set_defaults(name="Toaster",
-                    command="wodim driveropts=burnfree -data %s",
-                    server="127.0.0.1",
-                    directory=".",
-                    port=1235,
-                    serverport=1234)
-parser.add_option("-n", "--name", dest="name", help="sets the burner name")
-parser.add_option("-d", "--dir", dest="directory",
-                  help="specifies the directory containing the isos")
-parser.add_option("-c", "--cmd", dest="command",
-                  help="specifies the command to burn an iso named %s")
-parser.add_option("-p", "--port", dest="port", type="int",
-                  help="specifies the TCP port for listening")
-parser.add_option("-s", "--server", dest="server",
-                  help="specifies the hostname or IP address of the server")
-parser.add_option("-t", "--serverport", dest="serverport", type="int",
-                  help="specifies the server'sTCP port")
-(opts, args) = parser.parse_args()
+    # Cmd-line arguments
+    parser = optparse.OptionParser()
+    # Default values
+    parser.set_defaults(name="Toaster",
+                        command="wodim driveropts=burnfree -data %s",
+                        server="127.0.0.1",
+                        directory=".",
+                        port=1235,
+                        serverport=1234)
+    parser.add_option("-n", "--name", dest="name", help="sets the burner name")
+    parser.add_option("-d", "--dir", dest="directory",
+                      help="specifies the directory containing the isos")
+    parser.add_option("-c", "--cmd", dest="command",
+                      help="specifies the command to burn an iso named %s")
+    parser.add_option("-p", "--port", dest="port", type="int",
+                      help="specifies the TCP port for listening")
+    parser.add_option("-s", "--server", dest="server",
+                      help="specifies the hostname or IP address of the server")
+    parser.add_option("-t", "--serverport", dest="serverport", type="int",
+                      help="specifies the server'sTCP port")
+    (opts, args) = parser.parse_args()
 
-if len(args) > 0:
-    # We don't want cmdline arguments
-    parser.print_help()
-    sys.exit(-1)
+    if len(args) > 0:
+        # We don't want cmdline arguments
+        parser.print_help()
+        sys.exit(-1)
 
-try:
-    burner = CustomBurnerClient(opts.name, opts.directory, opts.command,
-                                opts.port, opts.server, opts.serverport)
-except socket.error, e:
-    # This may occur during server start
-    sys.stderr.write("Socket error: %s\n" % str(e))
-    sys.exit(-1)
+    try:
+        burner = CustomBurnerClient(opts.name, opts.directory, opts.command,
+                                    opts.port, opts.server, opts.serverport)
+    except socket.error, e:
+        # This may occur during server start
+        sys.stderr.write("Socket error: %s\n" % str(e))
+        sys.exit(-1)
 
-try:
-    burner.live()
-except KeyboardInterrupt:
-    # User killed this application, but the server is still running.
-    burner.sayGoodbye()
+    try:
+        burner.live()
+    except KeyboardInterrupt:
+        # User killed this application, but the server is still running.
+        burner.sayGoodbye()

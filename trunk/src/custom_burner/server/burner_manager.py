@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """This file is part of:
@@ -215,8 +214,9 @@ class BurnerManager:
         self.burnersLock.acquire()
         try:
             try:
-                (temp, burner) = self.burners.popitem()
-                burner.close()
+                while True:
+                    (temp, burner) = self.burners.popitem()
+                    burner.close()
             except KeyError:
                 pass # We popped out all the burners
         finally:

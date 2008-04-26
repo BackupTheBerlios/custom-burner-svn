@@ -32,10 +32,10 @@ import threading
 import socket
 import optparse
 import common
-from server.user_interface import *
-from server.network import *
-from server.burner import *
-from server.burner_manager import *
+from user_interface import *
+from network import *
+from burner import *
+from burner_manager import *
 
 class CustomBurnerServer:
     """A server."""
@@ -66,7 +66,7 @@ class CustomBurnerServer:
                          ("localhost", self.port))
         self.tcpServer = TCPServer(("localhost", self.port),
                                    RequestHandler)
-        self.ui = UserInterface(burnerManager)
+        self.ui = UserInterface(BurnerManager.instance())
         self.listener = NetworkServerThread(self.tcpServer, self)
 
     def live(self):
@@ -75,38 +75,38 @@ class CustomBurnerServer:
         self.ui.live()
         self.quitting = True
         self.listener.join()
-        burnerManager.close()
+        BurnerManager.instance().close()
 
 
 
 ############
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
-                    datefmt='%d %b %Y %H:%M:%S')
+def ServerMain():
+    """Main"""
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                        datefmt='%d %b %Y %H:%M:%S')
 
-# Cmd-line arguments
-parser = optparse.OptionParser()
-# Default values
-parser.set_defaults(directory=".",
-                    port=1234)
-parser.add_option("-d", "--dir", dest="directory",
-                  help="specifies the directory containing the isos")
-parser.add_option("-p", "--port", dest="port", type="int",
-                  help="specifies the TCP port for listening")
-(opts, args) = parser.parse_args()
+    # Cmd-line arguments
+    parser = optparse.OptionParser()
+    # Default values
+    parser.set_defaults(directory=".",
+                        port=1234)
+    parser.add_option("-d", "--dir", dest="directory",
+                      help="specifies the directory containing the isos")
+    parser.add_option("-p", "--port", dest="port", type="int",
+                      help="specifies the TCP port for listening")
+    (opts, args) = parser.parse_args()
 
-if len(args) > 0:
-    # We don't want cmdline arguments
-    parser.print_help()
-    sys.exit(-1)
+    if len(args) > 0:
+        # We don't want cmdline arguments
+        parser.print_help()
+        sys.exit(-1)
 
+    try:
+        srv = CustomBurnerServer(opts.directory, opts.port)
+    except socket.error, e:
+        # This may occur during server start
+        sys.stderr.write("Socket error: %s\n" % str(e))
+        sys.exit(-1)
 
-burnerManager = BurnerManager.instance()
-try:
-    srv = CustomBurnerServer(opts.directory, opts.port)
-except socket.error, e:
-    # This may occur during server start
-    sys.stderr.write("Socket error: %s\n" % str(e))
-    sys.exit(-1)
-
-srv.live()
+    srv.live()
