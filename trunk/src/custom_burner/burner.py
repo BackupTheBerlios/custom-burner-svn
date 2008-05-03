@@ -270,11 +270,6 @@ class RequestHandler(common.RequestHandler):
 def BurnerMain():
     """Main"""
     global burner
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
-                        datefmt='%d %b %Y %H:%M:%S')
-
-
     # Cmd-line arguments
     parser = optparse.OptionParser()
     # Default values
@@ -295,12 +290,26 @@ def BurnerMain():
                       help="specifies the hostname or IP address of the server")
     parser.add_option("-t", "--serverport", dest="serverport", type="int",
                       help="specifies the server'sTCP port")
+    parser.add_option("-v", "--verbose", dest="verbosity",
+                      action="count", help="increase verbosity")
     (opts, args) = parser.parse_args()
 
     if len(args) > 0:
         # We don't want cmdline arguments
         parser.print_help()
         sys.exit(-1)
+
+    # Setup logger
+    if opts.verbosity == None or opts.verbosity == 0:
+        loglevel = logging.WARN
+    elif opts.verbosity == 1:
+        loglevel = logging.INFO
+    else:
+        loglevel = logging.DEBUG
+    logging.basicConfig(level=loglevel,
+                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                        datefmt='%d %b %Y %H:%M:%S')
+
 
     try:
         burner = CustomBurnerClient(opts.name, opts.directory, opts.command,

@@ -82,25 +82,43 @@ class CustomBurnerServer:
 ############
 def ServerMain():
     """Main"""
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
-                        datefmt='%d %b %Y %H:%M:%S')
-
     # Cmd-line arguments
     parser = optparse.OptionParser()
     # Default values
     parser.set_defaults(directory=".",
-                        port=1234)
+                        port=1234,
+                        logfile="custom_burner_server.log")
     parser.add_option("-d", "--dir", dest="directory",
                       help="specifies the directory containing the isos")
     parser.add_option("-p", "--port", dest="port", type="int",
                       help="specifies the TCP port for listening")
+    parser.add_option("-v", "--verbose", dest="verbosity",
+                      action="count", help="increase verbosity")
+    parser.add_option("-l", "--logfile", dest="logfile",
+                      help="where to log messages (\"-\" for stdout)")
     (opts, args) = parser.parse_args()
 
     if len(args) > 0:
         # We don't want cmdline arguments
         parser.print_help()
         sys.exit(-1)
+
+    # Setup logger
+    if opts.verbosity == None or opts.verbosity == 0:
+        loglevel = logging.WARN
+    elif opts.verbosity == 1:
+        loglevel = logging.INFO
+    else:
+        loglevel = logging.DEBUG
+    # We want "-" as filename for stdout, but logging.basicConfig wants
+    # None
+    if opts.logfile == "-":
+        opts.logfile = None
+    logging.basicConfig(level=loglevel,
+                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                        datefmt='%d %b %Y %H:%M:%S',
+                        filename=opts.logfile)
+
 
     try:
         srv = CustomBurnerServer(opts.directory, opts.port)
