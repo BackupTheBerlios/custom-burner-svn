@@ -72,7 +72,7 @@ docstring, that explains what the method does.</li>
 
 <li>Please make extensive use of the <span class="code">logger</span>
 object of each class, choosing wisely among log levels (debug, info,
-warning, error).</li>
+warning, error or critical).</li>
 
 <li>No cryptic code, please! We're not smart enough to appreciate it!</li>
 </ul>
@@ -88,6 +88,7 @@ into a file.</p>
 <span class="code">BurnerManager</span>
 and <span class="code">Burner</span>, both located in the
 directory <span class="code">src/server</span>.</p>
+
 
 <h2><a name="interface">User interface</a></h2>
 
@@ -114,28 +115,17 @@ it, anyway, just contact the author.</p>
 
 <h2><a name="packaging">Packaging</a></h2>
 
-<p>This section will be filled in as soon as the first "official" release
-of the new Custom Burner will be made available.</p>
-
-<!-- <p>Custom Burner should be distributed in gzipped tar archives, that
+<p>Custom Burner should be distributed in (g)zipped tar archives, that
 contain all the files needed to run the system. To build a .tar.gz archive
-with the latest version of Custom Burner, you should use the <span
-class="code">buildpkg.sh</span> script. The command:</p>
+with the latest version of Custom Burner, you should use
+the <span class="code">setup.py</span> script. The command:</p>
 
-<div class="code"> $ ./buildpkg.sh <i>version</i></div>
+<div class="code"> $ ./setup.py sdist</div>
 
-<p>creates the file <span
-class="code">custom-burner-<i>version</i>.tar.gz</span> containing only the
-required perl files and the README in html and text-only format. The
-READMEs are generated from the <span class="code">READMEtmpl.html</span>
-file, substituting a special string with the version number. The text-only
-version is converted from the html one using <a href="http://lynx.browser.org">lynx</a>.</p>
+<p>creates the
+file <span class="code">dist/custom-burner-<i>version</i>.tar.gz</span>
+containing the source distribution.</p>
 
-<p><b>Important:</b> please remember to manually set the <span
-class="code">$version</span> variable in the file <span
-class="code">common.pm</span> <i>before</i> building the package! The <span
-class="code">buildpkg.sh</span> script doesn't update it.</p> -->
- 
 
 <h2><a name="contact">Contact information</a></h2>
 

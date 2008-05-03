@@ -31,7 +31,7 @@ import logging
 import threading
 import socket
 import optparse
-import common
+from custom_burner import common
 from user_interface import *
 from network import *
 from burner import *
