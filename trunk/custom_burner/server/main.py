@@ -32,6 +32,7 @@ import threading
 import socket
 import optparse
 from custom_burner import common
+from curses_interface import *
 from user_interface import *
 from network import *
 from burner import *
@@ -54,19 +55,24 @@ class CustomBurnerServer:
     # Are we going to exit? (the threads look at this variable)
     quitting = False
     
-    def __init__(self, isoDirectory, port):
+    def __init__(self, isoDirectory, port, useCurses):
         """Initializes the server.
 
         isoDirectory: path to the directory containing the ISO images.
+        port: TCP port to use for listening for connections.
+        useCurses: set to True to enable the curses interface.
         """
         self.port = port
+        if useCurses:
+            self.ui = CursesInterface(BurnerManager.instance())
+        else:
+            self.ui = UserInterface(BurnerManager.instance())
         self.logger = logging.getLogger("CustomBurnerServer")
         self.logger.info("Starting...")
         self.logger.info("Starting server on %s:%d" % \
                          ("localhost", self.port))
         self.tcpServer = TCPServer(("localhost", self.port),
                                    RequestHandler)
-        self.ui = UserInterface(BurnerManager.instance())
         self.listener = NetworkServerThread(self.tcpServer, self)
 
     def live(self):
@@ -87,7 +93,8 @@ def ServerMain():
     # Default values
     parser.set_defaults(directory=".",
                         port=1234,
-                        logfile="custom_burner_server.log")
+                        logfile="custom_burner_server.log",
+                        useCurses=False)
     parser.add_option("-d", "--dir", dest="directory",
                       help="specifies the directory containing the isos")
     parser.add_option("-p", "--port", dest="port", type="int",
@@ -96,6 +103,8 @@ def ServerMain():
                       action="count", help="increase verbosity")
     parser.add_option("-l", "--logfile", dest="logfile",
                       help="where to log messages (\"-\" for stdout)")
+    parser.add_option("-c", "--curses", dest="useCurses", action="store_true",
+                      help="use curses interface")
     (opts, args) = parser.parse_args()
 
     if len(args) > 0:
@@ -115,13 +124,14 @@ def ServerMain():
     if opts.logfile == "-":
         opts.logfile = None
     logging.basicConfig(level=loglevel,
-                        format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                        format='%(asctime)s %(name)-18s %(levelname)-8s '
+                        '%(message)s',
                         datefmt='%d %b %Y %H:%M:%S',
                         filename=opts.logfile)
 
 
     try:
-        srv = CustomBurnerServer(opts.directory, opts.port)
+        srv = CustomBurnerServer(opts.directory, opts.port, opts.useCurses)
     except socket.error, e:
         # This may occur during server start
         sys.stderr.write("Socket error: %s\n" % str(e))
