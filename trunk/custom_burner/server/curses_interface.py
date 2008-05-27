@@ -26,18 +26,24 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import logging
 import curses
+import curses.ascii
 import curses.wrapper
 from custom_burner import common
 import accumulator
+import burner_manager
 
-class CursesWindowWrapper:
-    """This is a wrapper of the curses.Window class.
+class CursesTable:
+    """This is a wrapper of the curses.Window class that makes it
+    behave like a table.
 
-    We need it because it's not possible
-    to have curses.newwin() generate an instance of this class."""
+    We need to make a proxy because it's not possible to have
+    curses.newwin() generate an instance of this class."""
 
-    def __init__(self, height, width, y, x):
-        """Constructor (same parameters as curses.newwin()."""
+    def __init__(self, height, width, y, x, columns, autoScroll=True):
+        """Constructor (same parameters as curses.newwin(), plus:
+
+        columns: list of column names.
+        autoScroll: true if you want the window to scroll when you add lines."""
         self.__window = curses.newwin(height, width, y, x)
         self.x = x
         self.y = y
@@ -45,8 +51,15 @@ class CursesWindowWrapper:
         self.height = height
         self.__window.refresh()
         self.__firstShownLine = 0;
-        self.__data = []
         self.__title = ""
+        self.__focused = False        
+        self.__columns = columns[:]
+        self.__widths = dict()
+        for key in columns:
+            self.__widths[key] = 0
+        self.__data = []
+        self.__selectedRow = -1
+        self.__autoScroll = autoScroll
 
     def getch(self):
         """Proxy for curses.window.getch()"""
@@ -56,58 +69,173 @@ class CursesWindowWrapper:
         """Proxy for curses.window.timeout()"""
         return self.__window.timeout(data)
 
+    def __drawBorder(self):
+        """Draws the border and the title."""
+        if self.__focused:
+            self.__window.attron(curses.A_BOLD)
+        else:
+            self.__window.attroff(curses.A_BOLD)
+        self.__window.border()
+        self.__window.addstr(0, 1, self.__title)
+        self.__window.attroff(curses.A_BOLD)
+        self.__window.addstr(self.height - 1, self.width - 8,
+                             "%d/%d" % (self.__firstShownLine + 1,
+                                          len(self.__data)))
+
+    def __printRow(self, i):
+        """Displays the i-th row, but only if it's inside the viewport."""
+        if i < len(self.__data) and i >= self.__firstShownLine and \
+               i < self.__firstShownLine + self.height - 2:
+            formatString = ""
+            for f in self.__columns:
+                formatString += "%("+ f + ")-" + str(self.__widths[f]) + "s  "
+                text = formatString % self.__data[i]
+                self.__window.addnstr(i - self.__firstShownLine + 1, 1, text,
+                                      self.width - 2)
+
     def __refreshContent(self):
         """Redraws the window from scratch."""
         self.__window.clear()
-        self.__window.border()
-        self.__window.addstr(0, 1, self.__title)
-        for i in range(self.__firstShownLine, len(self.__data) - 1):
-            self.__window.addnstr(i - self.__firstShownLine + 1, 1, 
-                                 self.__data[i], self.width - 2)
-        self.__window.addstr(self.height - 1, self.width - 4, 
-                             str(len(self.__data)))
+        self.__drawBorder()
+        for i in range(self.__firstShownLine,
+                       self.__firstShownLine + self.height - 2):
+            if self.__focused and i == self.__selectedRow:
+                self.__window.attron(curses.A_BOLD)
+            self.__printRow(i)
+            self.__window.attroff(curses.A_BOLD)
 
-    def scrollUp(self):
-        """Scrolls the window content up one line and calls refreshContent()"""
-        if self.__firstShownLine < len(self.__data):
+    def scrollDown(self):
+        """Scrolls the window down one line"""
+        if self.__firstShownLine < len(self.__data) - 1:
             self.__firstShownLine += 1
+            self.__refreshContent()
+            self.__printRow(self.__firstShownLine + self.height - 2)
+        else:
+            curses.beep()
+            
+    def scrollUp(self):
+        """Scrolls the window up one line"""
+        if self.__firstShownLine > 0:
+            self.__firstShownLine -= 1
             self.__refreshContent()
         else:
             curses.beep()
 
-    def addLine(self, line):
-        """Adds a line to the end of the window text."""
-        self.__data.append(line)
+    def addRow(self, row):
+        """Adds a row to the end of the table.
+
+        Scrolls if this table is auto-scrolling.
+
+        line: a dict with column names as keys."""
+        self.__data.append(row.copy())
+        # We may need to resize the table, to fit the new data
+        for key in row.keys():
+            if len(row[key]) > self.__widths[key]:
+                self.__widths[key] = len(row[key])
+        if self.__selectedRow == -1:
+            self.__selectedRow = 0
         lines = len(self.__data)
-        if self.__firstShownLine == lines - self.height + 2:
+        if self.__firstShownLine <= lines - self.height + 2 and \
+               self.__autoScroll:
             # We need to scroll everything upwards
-            self.scrollUp()
-        self.__window.addnstr(lines - self.__firstShownLine, 1, line, 
-                              self.width - 2)
-        self.__window.addstr(self.height - 1, self.width - 4, str(lines))
+            self.scrollDown()
+            if self.__selectedRow < self.__firstShownLine:
+                self.__selectedRow = self.__firstShownLine
+                if self.__focused:
+                    self.__window.attron(curses.A_BOLD)
+                    self.__printRow(self.__firstShownLine)
+                    self.__window.attroff(curses.A_BOLD)
+        else:
+            if self.__focused and self.__selectedRow == lines - 1:
+                self.__window.attron(curses.A_BOLD)
+            self.__printRow(lines - 1)
+            self.__window.attroff(curses.A_BOLD)
+        self.__drawBorder()
 
     def setTitle(self, title):
         """Sets the window title"""
         self.__title = title
-        self.__refreshContent()
+        self.__drawBorder()
 
     def refresh(self):
         return self.__window.refresh()
 
+    def noutrefresh(self):
+        return self.__window.noutrefresh()
 
-class IsoWindow(CursesWindowWrapper):
+    def focus(self):
+        self.__focused = True
+        self.__drawBorder()
+        if self.__selectedRow > -1:
+            self.__window.attron(curses.A_BOLD)
+            self.__printRow(self.__selectedRow)
+            self.__window.attroff(curses.A_BOLD)
+        self.refresh()
+
+
+    def unfocus(self):
+        self.__focused = False
+        self.__drawBorder()
+        if self.__selectedRow > -1:
+            self.__printRow(self.__selectedRow) # without bold face
+        self.refresh()
+
+
+    def receiveKey(self, key):
+        """Reacts to a key pressed."""
+        if key == curses.KEY_UP:
+            if self.__selectedRow > 0:
+                self.__printRow(self.__selectedRow)
+                self.__selectedRow -= 1
+                if self.__selectedRow < self.__firstShownLine:
+                    self.scrollUp()
+                else:
+                    self.__window.attron(curses.A_BOLD)
+                    self.__printRow(self.__selectedRow)
+                    self.__window.attroff(curses.A_BOLD)
+                self.refresh()
+            else:
+                curses.beep()                
+        elif key == curses.KEY_DOWN:
+            if self.__selectedRow < len(self.__data) - 1:
+                self.__printRow(self.__selectedRow)
+                self.__selectedRow += 1
+                if self.__selectedRow == \
+                       self.__firstShownLine + self.height - 2:
+                    self.scrollDown()
+                else:
+                    self.__window.attron(curses.A_BOLD)
+                    self.__printRow(self.__selectedRow)
+                    self.__window.attroff(curses.A_BOLD)
+                self.refresh()
+            else:
+                curses.beep()
+        else:
+            curses.beep()
+
+
+class IsoWindow(CursesTable):
     """A window that displays the list of ISOs."""
 
     def __init__(self, height, width, y, x):
-        CursesWindowWrapper.__init__(self, height, width, y, x)
-        self.setTitle("ISO list")
+        CursesTable.__init__(self, height, width, y, x,
+                             ("date", "iso", "committer"))
+        self.setTitle("ISO queue")
+        self.burnerManager = burner_manager.BurnerManager.instance()
+        self.redisplay()
+
+    def redisplay(self):
+        """Redisplays the window content."""
+        for iso in self.burnerManager.pendingIsos:
+            self.addRow(iso)
+        self.refresh()
 
 
-class LogWindow(CursesWindowWrapper):
+class LogWindow(CursesTable):
     """A window that displays log messages."""
 
     def __init__(self, height, width, y, x):
-        CursesWindowWrapper.__init__(self, height, width, y, x)
+        CursesTable.__init__(self, height, width, y, x, ("log", ))
         self.setTitle("Log")
 
 
@@ -134,11 +262,25 @@ class CursesInterface:
         """Updates the log window with the latest log messages."""
         try:
             while True:
-                self.__logWindow.addLine(self.__logs.pop())
+                self.__logWindow.addRow({"log": self.__logs.pop()})
         except IndexError:
             # All log messages read
             pass
         self.__logWindow.refresh()
+
+
+    def __switchFocus(self):
+        """Moves the focus to another window."""
+        if self.__focus == 0:
+            self.__isoWindow.unfocus()
+            self.__logWindow.focus()
+            self.__focus = 1
+            self.__focusedWindow = self.__logWindow
+        else:
+            self.__isoWindow.focus()
+            self.__logWindow.unfocus()
+            self.__focus = 0
+            self.__focusedWindow = self.__isoWindow
 
     def __liveActually(self, stdscr):
         """live() calls this function inside a curses wrapper."""
@@ -146,15 +288,25 @@ class CursesInterface:
         (screenH, screenW) = self.__stdscr.getmaxyx()
         self.__stdscr.addstr(0, 0, "Custom Burner " + common.version)
         self.__stdscr.addstr(screenH - 1, 0, "q: Quit")
-        self.__stdscr.refresh()
+        self.__stdscr.noutrefresh()
         isoWindowHeight = ((screenH - 2) * 2)/ 3
         self.__isoWindow = IsoWindow(isoWindowHeight, screenW, 1, 0)
         self.__isoWindow.timeout(1000) # msec
         self.__logWindow = LogWindow(screenH - 2 - isoWindowHeight, screenW,
                                      isoWindowHeight + 1, 0)
+        self.__logWindow.noutrefresh()
+        self.__focus = 0
+        self.__focusedWindow = self.__isoWindow
+        self.__isoWindow.focus()
         quitting = False
         while not quitting:
-            c = self.__isoWindow.getch()
             self.__updateLog()
-            if c == ord('q'):
+            c = self.__stdscr.getch()
+            self.__stdscr.addstr(screenH - 1, 0, "q: Quit" + curses.unctrl(c))
+            self.__stdscr.refresh()
+            if c == curses.ascii.TAB:
+                self.__switchFocus()
+            elif c == ord('q'):
                 quitting = True
+            elif c != curses.ERR:
+                self.__focusedWindow.receiveKey(c)

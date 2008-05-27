@@ -45,4 +45,4 @@ class Accumulator:
         """Returns the first element in the queue.
 
         Throws IndexError if the queue is empty."""
-        return self.__fifo.pop()
+        return self.__fifo.pop(0)

@@ -29,7 +29,7 @@ import SocketServer
 import threading
 from custom_burner import common
 import socket
-from burner_manager import *
+import burner_manager
 
 
 def handshake(connection):
@@ -106,7 +106,7 @@ class RequestHandler(common.RequestHandler):
 
     def handle(self):
         """Handle the connection: greet the peer."""
-        self.burnerManager = BurnerManager.instance()
+        self.burnerManager = burner_manager.BurnerManager.instance()
         try:
             handshake(self)
             data = self.readLine()

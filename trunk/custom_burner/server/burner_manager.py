@@ -233,8 +233,9 @@ class BurnerManager:
         try:
             self.logger.debug("Adding %s for %s to the queue." %
                               (iso, committer))
-            self.pendingIsos.append({"date": time.asctime(), "iso": iso,
-                              "committer": committer})
+            self.pendingIsos.append({"date": time.strftime("%Y-%m-%d %H-%M"),
+                                     "iso": iso,
+                                     "committer": committer})
         finally:
             self.isosLock.release()
         self.__saveState()
