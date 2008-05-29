@@ -233,7 +233,7 @@ class BurnerManager:
         try:
             self.logger.debug("Adding %s for %s to the queue." %
                               (iso, committer))
-            self.pendingIsos.append({"date": time.strftime("%Y-%m-%d %H-%M"),
+            self.pendingIsos.append({"date": time.strftime("%Y-%m-%d %H:%M"),
                                      "iso": iso,
                                      "committer": committer})
         finally:
