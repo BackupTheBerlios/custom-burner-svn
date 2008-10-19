@@ -216,7 +216,7 @@ class CustomBurnerClient:
         self.__findImages()
         self.registerToServer()
         self.logger.debug("Starting to listen on port %d" % self.port)
-        self.tcpServer = TCPServer(("localhost", self.port),
+        self.tcpServer = TCPServer(("", self.port),
                                    RequestHandler)
         self.burnCmd = burnCmd
         self.isoToBurn = False

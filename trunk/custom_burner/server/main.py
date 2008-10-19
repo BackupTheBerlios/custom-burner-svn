@@ -55,7 +55,7 @@ class CustomBurnerServer:
     # Are we going to exit? (the threads look at this variable)
     quitting = False
     
-    def __init__(self, isoDirectory, port, useCurses):
+    def __init__(self, port, useCurses):
         """Initializes the server.
 
         isoDirectory: path to the directory containing the ISO images.
@@ -70,8 +70,8 @@ class CustomBurnerServer:
         self.logger = logging.getLogger("CustomBurnerServer")
         self.logger.info("Starting...")
         self.logger.info("Starting server on %s:%d" % \
-                         ("localhost", self.port))
-        self.tcpServer = TCPServer(("localhost", self.port),
+                         ("", self.port))
+        self.tcpServer = TCPServer(("", self.port),
                                    RequestHandler)
         self.listener = NetworkServerThread(self.tcpServer, self)
 
@@ -95,8 +95,6 @@ def ServerMain():
                         port=1234,
                         logfile="custom_burner_server.log",
                         useCurses=False)
-    parser.add_option("-d", "--dir", dest="directory",
-                      help="specifies the directory containing the isos")
     parser.add_option("-p", "--port", dest="port", type="int",
                       help="specifies the TCP port for listening")
     parser.add_option("-v", "--verbose", dest="verbosity",
@@ -131,7 +129,7 @@ def ServerMain():
 
 
     try:
-        srv = CustomBurnerServer(opts.directory, opts.port, opts.useCurses)
+        srv = CustomBurnerServer(opts.port, opts.useCurses)
     except socket.error, e:
         # This may occur during server start
         sys.stderr.write("Socket error: %s\n" % str(e))
