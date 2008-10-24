@@ -138,6 +138,10 @@ class CustomBurnerClient:
                 # Burn!
                 self.logger.info("Burning %s for %s" % \
                                  (self.isoToBurn, self.isoCommitter))
+                print ("Next job: %s for %s. " +
+                       "Please insert disc and press ENTER") % \
+                                 (self.isoToBurn, self.isoCommitter)
+                sys.stdin.readline()
                 a = os.system(self.burnCmd % self.isoToBurn)
                 try:
                     connection = common.RequestMaker(self.serverIP,
