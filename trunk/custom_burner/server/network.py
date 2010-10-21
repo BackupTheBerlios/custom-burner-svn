@@ -118,7 +118,7 @@ class RequestHandler(common.RequestHandler):
                 isoName = self.readLine()
                 committer = self.readLine()
                 self.request.send(common.MSG_ACK + "\n")
-                self.logger.info("Peer %s report completion of job %s for %s" %
+                self.logger.info("Peer %s reports completion of job %s for %s" %
                                  (burnerName, isoName, committer))
                 self.burnerManager.reportCompletion(burnerName, isoName)
             elif data == common.MSG_BURN_ERROR:
@@ -126,7 +126,7 @@ class RequestHandler(common.RequestHandler):
                 isoName = self.readLine()
                 committer = self.readLine()
                 self.request.send(common.MSG_ACK + "\n")
-                self.logger.info(("Peer %s report error while burning %s " \
+                self.logger.info(("Peer %s reports error while burning %s " \
                                   "for %s") % (burnerName, isoName, committer))
                 self.burnerManager.reportBurningError(burnerName, isoName)
             elif data == common.MSG_CLOSING:

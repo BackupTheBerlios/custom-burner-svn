@@ -112,8 +112,6 @@ def ServerMain():
 
     # Setup logger
     if opts.verbosity == None or opts.verbosity == 0:
-        loglevel = logging.WARN
-    elif opts.verbosity == 1:
         loglevel = logging.INFO
     else:
         loglevel = logging.DEBUG

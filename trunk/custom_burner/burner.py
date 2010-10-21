@@ -136,11 +136,9 @@ class CustomBurnerClient:
             self.tcpServer.handle_request()
             if self.isoToBurn:
                 # Burn!
-                self.logger.info("Burning %s for %s" % \
+                self.logger.info("Burning %s for %s. "
+                                 "Please insert disc and press ENTER" % \
                                  (self.isoToBurn, self.isoCommitter))
-                print ("Next job: %s for %s. " +
-                       "Please insert disc and press ENTER") % \
-                                 (self.isoToBurn, self.isoCommitter)
                 sys.stdin.readline()
                 a = os.system(self.burnCmd % self.isoToBurn)
                 try:
@@ -305,8 +303,6 @@ def BurnerMain():
 
     # Setup logger
     if opts.verbosity == None or opts.verbosity == 0:
-        loglevel = logging.WARN
-    elif opts.verbosity == 1:
         loglevel = logging.INFO
     else:
         loglevel = logging.DEBUG
