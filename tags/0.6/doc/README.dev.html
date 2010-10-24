@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>Custom Burner - Developer README</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link href="stili.css" rel="stylesheet" type="text/css" />
+<style type="text/css">
+h1 {
+    text-align: center;
+}
+
+img {
+    border: none;
+}
+
+.code {
+    font-family: monospace;
+}
+
+div.code {
+    border: solid thin;
+    padding: 0.5cm;
+}
+
+p {
+    text-align: justify;
+}
+
+</style>
+</head>
+
+<body>
+<h1>Custom Burner - Developer README</h1>
+
+<p>This README is intended for developers. It contains information about
+the internal working of Custom Burner and its packaging guidelines.</p>
+
+<p>If you're willing to work on Custom Burner, please read this file
+carefully. If you think something's wrong or you have any comments, please
+feel free to <a href="#contact">contact the author</a>.</p>
+
+
+<h2>Getting the latest snapshot</h2>
+
+<p>The developer release is available only through Subversion. Instructions
+to check it out
+are <a href="https://developer.berlios.de/svn/?group_id=5521">here</a>.</p>
+
+
+<h2>Coding style</h2>
+
+<p>DISCLAIMER: The author is no Python hacker, therefore you might find
+these indications a bit weird. Feel free to discuss them with him!</p>
+
+<ul>
+<li>Indentation must be 4 chars wide.</li>
+
+<li>Try to keep a correct and smart object-oriented structure.</li>
+
+<li>Split crowded files. A class should be all contained in the same file,
+a file may contain more classes (if they are very small). When splitting
+files, they should be put in the appropriate directory
+(e.g. <span class="code">server/</span>).</li>
+
+<li>Try to make small functions with clear names and easy to
+understand.</li>
+
+<li>Comment much, and comment smart. ;-) All methods should have a
+docstring, that explains what the method does.</li>
+
+<li>Please make extensive use of the <span class="code">logger</span>
+object of each class, choosing wisely among log levels (debug, info,
+warning, error or critical).</li>
+
+<li>No cryptic code, please! We're not smart enough to appreciate it!</li>
+</ul>
+
+
+<h2><a name="database">Data persistency</a></h2>
+
+<p>Custom Burner Server uses the <span class="code">cPickle</span> Python
+module to serialize some of its internal data structures, and saves them
+into a file.</p>
+
+<p>The only classes that need their state saved are
+<span class="code">BurnerManager</span>
+and <span class="code">Burner</span>, both located in the
+directory <span class="code">src/server</span>.</p>
+
+
+<h2><a name="interface">User interface</a></h2>
+
+<p>Custom burner is being designed to be quite modular. The class that
+deals with the user, either showing messages or requesting input,
+is <span class="code">UserInterface</span>, inside the
+file <span class="code">src/server/user_interface.py</span>.</p>
+
+<p>By rewriting that class, it should be possible to write new interfaces
+for Custom Burner, e.g. graphical ones, without need to rewrite the
+internal code, but just substituting one class.</p>
+
+<p>Currently only one <em>very</em> simple textual interface is
+present.</p>
+
+
+<h2>Network protocol</h2>
+
+<p>The server and client modules communicate through a TCP connection. The
+protocol, all in clear text, is quite simple; you should be able to
+understand it by looking at the code. If you would like a description of
+it, anyway, just contact the author.</p>
+
+
+<h2><a name="packaging">Packaging</a></h2>
+
+<p>Custom Burner should be distributed in (g)zipped tar archives, that
+contain all the files needed to run the system. To build a .tar.gz archive
+with the latest version of Custom Burner, you should use
+the <span class="code">setup.py</span> script. The command:</p>
+
+<div class="code"> $ ./setup.py sdist</div>
+
+<p>creates the
+file <span class="code">dist/custom-burner-<i>version</i>.tar.gz</span>
+containing the source distribution.</p>
+
+
+<h2><a name="contact">Contact information</a></h2>
+
+<p>You can contact me for any request or information:</p>
+
+<p>Arrigo Marchiori<br />
+ardovm at yahoo dot it<br />
+<a href="http://rigo.altervista.org">http://rigo.altervista.org</a></p>
+
+<p>This project's homepage is at <a
+href="http://custom-burner.berlios.de">http://custom-burner.berlios.de</a></p>
+
+<hr />
+
+<p><a href="http://developer.berlios.de">
+<img src="http://developer.berlios.de/bslogo.php?group_id=5521" width="124"
+height="32" alt="BerliOS Logo" /></a>
+<a href="http://validator.w3.org/check?uri=referer"><img
+src="http://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0!"
+height="31" width="88" style="border:0" /></a> <a
+href="http://jigsaw.w3.org/css-validator/check/referer"><img
+style="border:0;width:88px;height:31px"
+src="http://jigsaw.w3.org/css-validator/images/vcss" alt="Valid CSS!"
+/></a></p>
+
+</body>
+</html>
