@@ -27,7 +27,7 @@ import os
 import os.path
 from distutils.core import setup
 
-version_string = "0.5"
+version_string = "0.6"
 
 setup(name='custom-burner',
       version=version_string,
