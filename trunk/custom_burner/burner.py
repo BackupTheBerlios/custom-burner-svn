@@ -140,7 +140,8 @@ class CustomBurnerClient:
                                  "Please insert disc and press ENTER" % \
                                  (self.isoToBurn, self.isoCommitter))
                 sys.stdin.readline()
-                a = os.system(self.burnCmd % self.isoToBurn)
+                a = os.system(self.burnCmd % os.path.join(self.isoDirectory,
+                                                          self.isoToBurn))
                 try:
                     connection = common.RequestMaker(self.serverIP,
                                                      self.serverPort)

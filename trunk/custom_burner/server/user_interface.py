@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
 import sys
+import csv
 
 class UserInterface:
     """The class that asks input from the user."""
@@ -93,6 +94,57 @@ class UserInterface:
         print
 
 
+    def __outputCSV(self):
+        """Outputs a list of the isos that have been burnt in CSV format,
+        together with some statistics."""
+        fileName = "burntIsos.csv"
+        isos = self.burnerManager.getBurntIsos()
+        if len(isos) > 0:
+            print "Filename [%s]: " % (fileName),
+            c = sys.stdin.readline().strip()
+            if c:
+                fileName = c
+            try:
+                outFile = csv.writer(open(fileName, "w"))
+                outFile.writerow(["No.", "Req. date", "ISO", "Committer",
+                                  "Burner"])
+                isosCounters = dict()
+                burnersCounters = dict()
+                i = 1
+                for iso in isos:
+                    outFile.writerow([i, iso["date"], iso["iso"],
+                                      iso["committer"], iso["burner"]])
+                    if iso["iso"] in isosCounters:
+                        isosCounters[iso["iso"]] += 1
+                    else:
+                        isosCounters[iso["iso"]] = 1
+                    if iso["burner"] in burnersCounters:
+                        burnersCounters[iso["burner"]] += 1
+                    else:
+                        burnersCounters[iso["burner"]] = 1
+                    i += 1
+                # Statistics
+                secondMember = lambda x:x[1] # Needed for sort() below
+                outFile.writerow([])
+                outFile.writerow(["ISO Statistics"])
+                outFile.writerow(["ISO", "Requests"])
+                items = isosCounters.items()
+                items.sort(key=secondMember, reverse=True)
+                for item in items:
+                    outFile.writerow(list(item))
+                outFile.writerow([])
+                outFile.writerow(["Burners Statistics"])
+                outFile.writerow(["Burner", "ISOs burnt"])
+                items = burnersCounters.items()
+                items.sort(key=secondMember, reverse=True)
+                for item in items:
+                    outFile.writerow(list(item))
+            except IOError, e:
+                sys.stderr.write(str(e) + "\n")
+        else:
+            print "No isos burnt."
+        print
+
     def __listWorkedIsos(self):
         """Lists the isos that are being burnt."""
         isos = self.burnerManager.getIsosBeingBurnt()
@@ -132,6 +184,7 @@ class UserInterface:
             print "l : list queue of pending isos"
             print "w : list isos being burnt"
             print "d : list burnt isos"
+            print "c : output burnt isos in CSV format"
             print "b : list burners"
             print "r : refresh queues, check for free burners and " \
                   "unassigned jobs."
@@ -144,7 +197,9 @@ class UserInterface:
             elif c == "l":
                 self.__listPendingIsos()
             elif c == "w":
-                self.__listWorkedIsos()                
+                self.__listWorkedIsos()
+            elif c == "c":
+                self.__outputCSV()
             elif c == "d":
                 self.__listBurntIsos()
             elif c == "b":
