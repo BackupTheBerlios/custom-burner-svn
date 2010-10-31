@@ -39,33 +39,36 @@ class BurnerManager:
 
     This class must also save and restore its internal state.
 
-    The name is the primary key to access the database."""
+    The name is the primary key to access the database.
+
+    Instance variables:
+    
+    burners: dict of all connected burners, indexed by name
+    
+    burnersLock: lock for accessing burners
+
+    isos: a set of all ISOs available
+
+    pendingIsos: a list of dicts {"date", "iso", "committer"}
+
+    isosBeingBurnt: a list of dicts {"date", "iso", "committer", "burner"}
+
+    isosLock: a lock for accessing ISO data
+
+    isosBurnt: like isosBeingBurnt, but contains the completed isos
+
+    logger: logger object
+    """
+
     # The file we save the data into
     dbFileName = "custom_burner_server.db"
-    burners = {} # Indexed by burner name
-    burnersLock = None
-    isos = set() # A set of all the isos our burners have
-    pendingIsos = [] # A list of dicts {"date", "iso", "committer"}
-    # A list of dicts {"date", "iso", "committer", "burner"}
-    isosBeingBurnt = []
-    isosBurnt = [] # See isosBeingBurnt
-    isosLock = None
-
-    logger = None
-
-    def instance():
-        """This method creates the instance of the manager and returns it.
-
-        This is not an actual singleton: it's just a way to ensure
-        that everyone is using the same object."""
-        global singleton
-        if singleton == None:
-            singleton = BurnerManager()
-        return singleton
-
-    instance = staticmethod(instance)
-
+    
     def __init__(self):
+        self.burners = {}
+        self.isos = set()
+        self.pendingIsos = []
+        self.isosBeingBurnt = []
+        self.isosBurnt = []
         self.burnersLock = threading.Lock()
         self.isosLock = threading.Lock()
         self.logger = logging.getLogger("BurnerManager")
@@ -89,6 +92,17 @@ class BurnerManager:
                               "(EOFError). Starting from scratch." %
                               self.dbFileName)
 
+    def instance():
+        """This method creates the instance of the manager and returns it.
+
+        This is not an actual singleton: it's just a way to ensure
+        that everyone is using the same object."""
+        global singleton
+        if singleton == None:
+            singleton = BurnerManager()
+        return singleton
+
+    instance = staticmethod(instance)
 
     def __saveState(self):
         """Saves the current state to dbFileName."""
@@ -122,7 +136,6 @@ class BurnerManager:
         finally:
             self.isosLock.release()
         return retval
-
 
     def getPendingIsos(self):
         """Returns a copy of the list of isos waiting to be burnt.
@@ -164,7 +177,6 @@ class BurnerManager:
             self.isosLock.release()
         return retval
 
-
     def getBurners(self):
         """Returns a list of the registered burners.
 
@@ -189,7 +201,6 @@ class BurnerManager:
             self.burnersLock.release()
         return retval
 
-
     def registerBurner(self, burnerName, burnerIP, burnerPort, isos):
         """Register a burner and its isos."""
         self.burnersLock.acquire()
@@ -199,13 +210,24 @@ class BurnerManager:
             if self.burners.has_key(burnerName):
                 self.logger.warning("Burner %s is already registered" %
                                     burnerName)
+                if not self.burners[burnerName].free:
+                    missingISO = self.burners[burnerName].iso
+                    self.logger.warning("Burner %s was working on %s. "
+                                        "Assuming it was NOT burnt." %
+                                        (burnerName, missingISO, ))
+                    self.burnersLock.release() # We need to release the lock
+                    try:
+                        self.reportBurningError(burnerName, missingISO)
+                    finally:
+                        # Better to re-acquire it otherwise the other finally
+                        # clause could give error
+                        self.burnersLock.acquire()
             self.burners[burnerName] = Burner(burnerName, burnerIP,
                                               burnerPort, isos)
         finally:
             self.burnersLock.release()
         self.__rebuildIsoList()        
         self.__saveState()
-
 
     def close(self):
         """Close the connection with all the burners.
@@ -223,7 +245,6 @@ class BurnerManager:
             self.burnersLock.release()
         self.__saveState()
 
-
     def queueIso(self, iso, committer):
         """Adds an ISO to the queue.
 
@@ -239,7 +260,6 @@ class BurnerManager:
         finally:
             self.isosLock.release()
         self.__saveState()
-
 
     def reportCompletion(self, burnerName, iso):
         """Reports a successful burn."""
@@ -264,9 +284,16 @@ class BurnerManager:
             self.burnersLock.release()
         self.__saveState()
 
-
     def reportBurningError(self, burnerName, iso):
-        """Reports an unsuccessful burn."""
+        """Reports an unsuccessful burn.
+
+        burnerName: name of the burner (the "name" field)
+
+        iso: filename of the ISO that burnerName was supposed to burn
+
+        Takes the ISO that is marked as being burnt by burnerName, and
+        puts it back into the top of the pending queue.
+        """
         self.isosLock.acquire()
         self.burnersLock.acquire()
         try:
@@ -298,13 +325,24 @@ class BurnerManager:
             self.burnersLock.release()
         self.__saveState()
 
- 
     def reportClosingBurner(self, burnerName):
-        """Takes a burner out of the list, because it's closing itself."""
+        """Takes a burner out of the list, because it's closing itself.
+
+        Calls self.reportBurningError() if the burner was working."""
         self.burnersLock.acquire()
         try:
-            self.logger.debug("Forgetting burner %s" % burnerName)
             try:
+                if not self.burners[burnerName].free:
+                    b = self.burners[burnerName]
+                    self.logger.warning("Burner %s was working on %s for %s. "
+                                        "Assuming the ISO was NOT burnt." %
+                                        (burnerName, b.iso, b.committer))
+                    self.burnersLock.release() # We must release it temporarily
+                    try:
+                        self.reportBurningError(burnerName, b.iso)
+                    finally:
+                        self.burnersLock.acquire()
+                self.logger.debug("Forgetting burner %s" % burnerName)
                 del(self.burners[burnerName])
             except KeyError:
                 # Weird, but may happen during debugging

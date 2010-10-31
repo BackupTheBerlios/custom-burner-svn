@@ -27,39 +27,49 @@ import select
 import logging
 import SocketServer
 
-version="0.5"
-
 class BurnerException(Exception):
     pass
 
 class NetworkCommunicator:
     """Contains utility methods for network communication.
 
-    The implementing class must have a socket object named 'request'."""
-    data = "" # Buffer for readline
+    The implementing class must have a socket object named 'request'.
+
+    self.__data: temporary buffer for readLine()"""
+
+    def __init__(self):
+        """Constructor.
+
+        Initializes the instance variables.
+        """
+        self.__data = ""
 
     def readLine(self):
-        """Read a single line from the socket."""
+        """Read a single line from the socket.
+
+        Returns the read line."""
         chunkSize = 16
         socks = (self.request, )
-        while "\n" not in self.data:
+        while "\n" not in self.__data:
             select.select(socks, (), socks) # Avoid busy waiting
-            self.data += self.request.recv(chunkSize)
-        index = self.data.find("\n")
-        retVal = self.data[:index]
-        self.data = self.data[(index + 1):]
+            self.__data += self.request.recv(chunkSize)
+        index = self.__data.find("\n")
+        retVal = self.__data[:index]
+        self.__data = self.__data[(index + 1):]
         return retVal
 
 
 class RequestMaker(NetworkCommunicator):
-    """Utility class to connect to a peer and talk to it."""
-    request = None; # Our socket
+    """Utility class to connect to a peer and talk to it.
+
+    The socket for the communication is the instance variable self.request"""
 
     def __init__(self, peerIP, peerPort):
         """Open the connection.
 
         Throws BurnerException.
         """
+        NetworkCommunicator.__init__(self)
         try:
             self.request = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.request.connect((peerIP, peerPort))
@@ -89,6 +99,11 @@ class RequestHandler(NetworkCommunicator, SocketServer.BaseRequestHandler):
 
     The server protocol must be implemented by the handle() method.
     """
+
+    def __init__(self, *args, **kwargs):
+        NetworkCommunicator.__init__(self)
+        SocketServer.BaseRequestHandler.__init__(self, *args, **kwargs)
+        
     def setup(self):
         self.logger = logging.getLogger("RequestHandler")
         self.peerAddress = self.request.getpeername() # (name, port)
@@ -120,4 +135,4 @@ MSG_CLOSING = "Bye bye"
 MSG_ACK = "Ok"
 
 # Program version
-version = "0.5"
+version = "0.7"

@@ -58,7 +58,6 @@ class NetworkServerThread(threading.Thread):
     
     def run(self):
         """Main loop."""
-        global quitting
         while not self.customBurnerServer.quitting:
             socks = (self.tcpServer.socket, )
             a = select.select(socks, (), socks, 1)
@@ -82,6 +81,8 @@ class RequestHandler(common.RequestHandler):
     The server side protocol is implemented here.
     """
 
+    def __init__(self, *args, **kwargs):
+        common.RequestHandler.__init__(self, *args, **kwargs)
 
     def greetPeer(self):
         """Receives self-introducing data from a burner and registers it."""

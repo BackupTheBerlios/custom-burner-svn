@@ -29,16 +29,26 @@ from custom_burner import common
 import network
 
 class Burner:
-    """Represents a burner."""
+    """Represents a burner.
 
-    name = None # Name, uniquely identifying this burner
-    ip = None # IP address of this burner
-    port = None # TCP port on which the burner is waiting for connections
-    free = True # True if the burner is idle
-    iso = None # The name of the iso being burned
-    isos = [] # The isos we can burn
-    committer = None # The name of the committer for the ISO
-    logger = None # Our logger
+    Instance variables:
+
+    name: name, uniquely identifying this burner
+    
+    ip: IP address of this burner
+
+    port: TCP port on which the burner is waiting for connections
+
+    free: True if the burner is idle
+    
+    iso: name of the iso being burnt
+    
+    isos: list of the isos we can burn
+    
+    committer: the name of the committer for the ISO being burnt
+    
+    logger: logger object
+    """
 
     def __init__(self, name, ip, port, isos):
         """Constructor.
@@ -53,8 +63,9 @@ class Burner:
         self.port = int(port)
         self.free = True
         self.isos = isos
+        self.iso = ""
+        self.committer = None
         self.logger = logging.getLogger("Burner(%s)" % self.name)
-
 
     def __getstate__(self):
         """Return the state of this object, for serialization."""
@@ -62,11 +73,9 @@ class Burner:
         del odict["logger"]
         return odict
 
-
     def __setstate__(self, idict):
         self.__dict__.update(idict)
         self.logger = logging.getLogger("Burner(%s)" % self.name)
-
 
     def assignIso(self, date, iso, committer):
         """Tries to assign an iso to the burner.
@@ -101,7 +110,6 @@ class Burner:
             self.logger.error("assignIso:" + str(e))
             retval = False
         return retval
-        
 
     def close(self):
         """Closes the connection with the burner."""
@@ -123,5 +131,4 @@ class Burner:
             self.logger.error("close: " + str(e))
         except socket.error, e:
             self.logger.error("close: " + str(e))
-
 

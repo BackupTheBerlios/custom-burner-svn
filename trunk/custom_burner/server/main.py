@@ -39,21 +39,21 @@ from burner import *
 from burner_manager import *
 
 class CustomBurnerServer:
-    """A server."""
+    """A server.
+
+    Instance variables:
+
+    port: TCP port to listen on
+
+    tcpServer: TCP server object, used to receive connections from the
+    clients
+
+    logger: logger object
+
+    quitting: the threads check this variable; when it is True, they exit
+    """
     # Maximum number of clients allowed to connect
     MAX_CLIENTS = 10
-
-    # TCP port to listen on
-    port = None
-
-    # Our TCP server object
-    tcpServer = None
-
-    # Our logger
-    logger = None
-
-    # Are we going to exit? (the threads look at this variable)
-    quitting = False
     
     def __init__(self, port, useCurses):
         """Initializes the server.
@@ -63,6 +63,7 @@ class CustomBurnerServer:
         useCurses: set to True to enable the curses interface.
         """
         self.port = port
+        self.quitting = False
         if useCurses:
             self.ui = CursesInterface(BurnerManager.instance())
         else:
@@ -71,18 +72,20 @@ class CustomBurnerServer:
         self.logger.info("Starting...")
         self.logger.info("Starting server on %s:%d" % \
                          ("", self.port))
-        self.tcpServer = TCPServer(("", self.port),
-                                   RequestHandler)
+        self.tcpServer = TCPServer(("", self.port), RequestHandler)
         self.listener = NetworkServerThread(self.tcpServer, self)
 
     def live(self):
         """Accept network connections and user interaction."""
-        self.listener.start()
-        self.ui.live()
+        try:
+            self.listener.start()
+            self.ui.live()
+        except KeyboardInterrupt:
+            self.logger.info("CTRL+C received. Closing...")
+            pass
         self.quitting = True
         self.listener.join()
         BurnerManager.instance().close()
-
 
 
 ############
