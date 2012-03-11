@@ -26,9 +26,11 @@ import sys
 import os
 import os.path
 import logging
+import time
 import socket
 import SocketServer
 import optparse
+import dbus
 
 import common
 
@@ -116,22 +118,31 @@ class CustomBurnerClient:
     isos: a list of all the ISOs inside isoDirectory
 
     quitting: if set to True, the live() method ends
+
+    burnCmd: the command for burning an ISO named %s
+
+    burnCmdForced: if True, the value of burnCmd must not be rewritten
+    by setBurnParameters().
+
+    You shold immediately call forceBurnCommand() and/or
+    setBurnParameters().
     """
 
-    def __init__(self, name, isoDirectory, burnCmd, port, serverIP,
+    def __init__(self, name, isoDirectory, port, serverIP,
                  serverPort=1234):
         """Initializes the client.
 
         isoDirectory: path to the directory containing the ISO images.
 
-        burnCmd: the command to burn an iso named '%s' (could contain spaces)
         """
         self.name = name
         self.isoDirectory = os.path.expanduser(isoDirectory)
         self.port = port
         self.serverIP = serverIP
         self.serverPort = serverPort
-        self.burnCmd = burnCmd
+        self.burnCmd = None
+        self.device = None
+        self.speed = None
         self.isoToBurn = False
         self.quitting = False
         # Initialize logging
@@ -144,6 +155,31 @@ class CustomBurnerClient:
         self.__registerToServer()
         self.logger.debug("Starting to listen on port %d" % self.port)
         self.tcpServer = TCPServer(("", self.port), RequestHandler)
+        self.burnCmdForced = False
+
+    def forceBurnCommand(self, cmd):
+        """Sets a custom command for burning CD's
+        
+        cmd: the command to burn an iso named '%s' (could contain spaces)
+        """
+        self.burnCmd = cmd
+        self.burnCmdForced = True
+
+    def setBurnParameters(self, device, speed):
+        """Sets the command for burning CD's
+        
+        device: the burner device file.
+
+        speed: the burning speed.
+
+        Constructs self.burnCmd as an invocation of cdrecord with the
+        specified parameters.
+        """
+        self.device = device
+        self.speed = speed
+        if not self.burnCmdForced:
+            self.burnCmd = ("cdrecord dev=%s speed=%d driveropts=burnfree -v "
+                            "-data %%s" % (device, speed))
 
     def __connectToServer(self):
         """Connects to the server and goes through the handshake procedure.
@@ -213,6 +249,57 @@ class CustomBurnerClient:
         self.isoDate = date
         self.isoCommitter = committer
 
+    def __waitForDisc(self):
+        """Waits for the disc to be inserted.
+        
+        If the device was specified, and dbus and udisks are reachable,
+        automatically returns when the disc has been inserted. Otherwise,
+        just prompts the user.
+        """
+        if self.device is not None:
+            try:
+                systemBus = dbus.SystemBus()
+                proxy = systemBus.get_object("org.freedesktop.UDisks", 
+                                             "/org/freedesktop/UDisks")
+                interface = dbus.Interface(proxy, "org.freedesktop.UDisks")
+                objectPath = interface.FindDeviceByDeviceFile(self.device)
+                device = systemBus.get_object("org.freedesktop.UDisks", 
+                                              objectPath)
+                mediaCompatibility = device.Get("", "DriveMediaCompatibility")
+                if ((not "optical_cd_r" in mediaCompatibility) or 
+                    (not "optical_dvd_r" in mediaCompatibility) or
+                    (not "optical_dvd_plus_r" in mediaCompatibility)):
+                    raise common.BurnerException("Device %s is not a CD/DVD "
+                                                 "burner" % self.device)
+                ready = False
+                while not ready:
+                    if not device.Get("", "DeviceIsOpticalDisc"):
+                        self.logger.info("Burning %s for %s. Please insert "
+                                         "a blank disk in drive %s" % 
+                                         (self.isoToBurn, self.isoCommitter,
+                                          self.device))
+                        while not device.Get("", "DeviceIsOpticalDisc"):
+                            time.sleep(1)
+                    if device.Get("", "OpticalDiscIsBlank"):
+                        self.logger.info("Blank disc detected in drive.")
+                        ready = True
+                    else:
+                        self.logger.warning("Inserted disk cannot be burnt."
+                                            "Please change it.")
+                        while device.Get("", "DeviceIsOpticalDisc"):
+                            time.sleep(1)
+                return # Good device inserted
+            except dbus.exceptions.DBusException, e:
+                self.logger.error(e)
+            except common.BurnerException, e:
+                self.logger.error(e)
+        # If we got here, either we don't have dbus, or something went wrong.
+        # We can just prompt the user.
+        self.logger.info("Burning %s for %s. "
+                         "Please insert disc and press ENTER" % \
+                         (self.isoToBurn, self.isoCommitter))
+        sys.stdin.readline()
+
     def live(self):
         """Waits for jobs and does them."""
         while not self.quitting:
@@ -220,10 +307,7 @@ class CustomBurnerClient:
             self.tcpServer.handle_request()
             if self.isoToBurn:
                 # Burn!
-                self.logger.info("Burning %s for %s. "
-                                 "Please insert disc and press ENTER" % \
-                                 (self.isoToBurn, self.isoCommitter))
-                sys.stdin.readline()
+                self.__waitForDisc()
                 a = os.system(self.burnCmd % os.path.join(self.isoDirectory,
                                                           self.isoToBurn))
                 try:
@@ -282,16 +366,21 @@ def BurnerMain():
     parser = optparse.OptionParser()
     # Default values
     parser.set_defaults(name="Toaster",
-                        command="wodim driveropts=burnfree -data %s",
                         server="127.0.0.1",
                         directory=".",
                         port=1235,
+                        speed=4,
                         serverport=1234)
     parser.add_option("-n", "--name", dest="name", help="sets the burner name")
     parser.add_option("-d", "--dir", dest="directory",
                       help="specifies the directory containing the isos")
+    parser.add_option("-D", "--device", dest="device",
+                      help="specifies the burner device (overridden by -c)")
+    parser.add_option("-S", "--speed", dest="speed", type="int",
+                      help="specifies the burning speed (overridden by -c)")
     parser.add_option("-c", "--cmd", dest="command",
-                      help="specifies the command to burn an iso named %s")
+                      help="specifies the command to burn an iso named %s "
+                      "(overrides -D and -S")
     parser.add_option("-p", "--port", dest="port", type="int",
                       help="specifies the TCP port for listening")
     parser.add_option("-s", "--server", dest="server",
@@ -318,13 +407,22 @@ def BurnerMain():
 
 
     try:
-        burner = CustomBurnerClient(opts.name, opts.directory, opts.command,
+        if ((opts.command is None) and 
+            ((opts.device is None) or (opts.speed is None))):
+                sys.stderr.write("Please specify the speed and device "
+                                 "(options -S and -D) or the burn command "
+                                 "(option -c)\n")
+                sys.exit(1)
+        burner = CustomBurnerClient(opts.name, opts.directory,
                                     opts.port, opts.server, opts.serverport)
+        if opts.command:
+            burner.forceBurnCommand(opts.command)
+        if opts.device is not None: # There is a default value for opts.speed
+            burner.setBurnParameters(opts.device, opts.speed)
     except socket.error, e:
         # This may occur during server start
         sys.stderr.write("Socket error: %s\n" % str(e))
         sys.exit(-1)
-
     try:
         burner.live()
     except KeyboardInterrupt:
