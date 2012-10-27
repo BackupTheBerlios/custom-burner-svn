@@ -81,6 +81,29 @@ class UserInterface:
             print "No isos pending."
         print
 
+    def __deletePendingIso(self):
+        """Lists the isos waiting to be burnt."""
+        isos = self.burnerManager.getPendingIsos()
+        print
+        if len(isos) > 0:
+            print "Pending isos:", len(isos)
+            for i in range(len(isos)):
+                iso = isos[i]
+                print i + 1, ":", iso["date"], iso["iso"], iso["committer"]
+            try:
+                choice = int(raw_input("ISO to delete: ")) - 1
+                confirmation = raw_input("Confim deleting iso %s for %s "
+                                         "(y/n): " % 
+                                         (isos[choice]["iso"],
+                                          isos[choice]["committer"]))
+                if confirmation.lower() == "y":
+                    self.burnerManager.removeIso(isos[choice])
+            except ValueError:
+                pass # Annulliamo
+        else:
+            print "No isos pending."
+        print
+
     def __listBurntIsos(self):
         """Lists the isos that have been burnt."""
         isos = self.burnerManager.getBurntIsos()
@@ -188,6 +211,7 @@ class UserInterface:
             print "b : list burners"
             print "r : refresh queues, check for free burners and " \
                   "unassigned jobs."
+            print "D : delete pending iso"
             print "q : quit"
             print
             print "Your choice:",
@@ -202,6 +226,8 @@ class UserInterface:
                 self.__outputCSV()
             elif c == "d":
                 self.__listBurntIsos()
+            elif c == "D":
+                self.__deletePendingIso()
             elif c == "b":
                 self.__listBurners()
             elif c == "r":

@@ -366,7 +366,17 @@ class BurnerManager:
         finally:
             self.burnersLock.release()
             self.isosLock.release()
-        
+
+    def removeIso(self, isoData):
+        """ Removes an element from the pending ISOs"""
+        self.isosLock.acquire()
+        try:
+            self.logger.info("Removing iso %s for %s" % 
+                             (isoData["iso"], isoData["committer"]))
+            self.pendingIsos.remove(isoData)
+        finally:
+            self.isosLock.release()
+        self.__saveState()
 
     def refresh(self):
         """Checks if new isos are waiting and tries to assign them to idle
