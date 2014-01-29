@@ -179,7 +179,7 @@ class CustomBurnerClient:
         self.speed = speed
         if not self.burnCmdForced:
             self.burnCmd = ("cdrecord dev=%s speed=%d driveropts=burnfree -v "
-                            "-data %%s" % (device, speed))
+                            "-eject -data %%s" % (device, speed))
 
     def __connectToServer(self):
         """Connects to the server and goes through the handshake procedure.
@@ -249,6 +249,114 @@ class CustomBurnerClient:
         self.isoDate = date
         self.isoCommitter = committer
 
+    def __waitForDiscUDisks(self, systemBus):
+        """Waits for the disc to be inserted using UDisks.
+        
+        Raises dbus.exceptions.DBusException or common.BurnerException
+        in case of error.
+        """
+        proxy = systemBus.get_object("org.freedesktop.UDisks", 
+                                     "/org/freedesktop/UDisks")
+        interface = dbus.Interface(proxy, "org.freedesktop.UDisks")
+        objectPath = interface.FindDeviceByDeviceFile(self.device)
+        device = systemBus.get_object("org.freedesktop.UDisks", 
+                                      objectPath)
+        mediaCompatibility = device.Get("", "DriveMediaCompatibility")
+        if ((not "optical_cd_r" in mediaCompatibility) or 
+            (not "optical_dvd_r" in mediaCompatibility) or
+            (not "optical_dvd_plus_r" in mediaCompatibility)):
+            raise common.BurnerException("Device %s is not a CD/DVD "
+                                         "burner" % self.device)
+        ready = False
+        while not ready:
+            if not device.Get("", "DeviceIsOpticalDisc"):
+                self.logger.info("Burning %s for %s. Please insert "
+                                 "a blank disk in drive %s" % 
+                                 (self.isoToBurn, self.isoCommitter,
+                                  self.device))
+                while not device.Get("", "DeviceIsOpticalDisc"):
+                    time.sleep(1)
+            if device.Get("", "OpticalDiscIsBlank"):
+                self.logger.info("Blank disc detected in drive.")
+                ready = True
+            else:
+                self.logger.warning("Inserted disk cannot be burnt."
+                                    "Please change it.")
+                while device.Get("", "DeviceIsOpticalDisc"):
+                    time.sleep(1)
+        return # Good device inserted
+
+    def __waitForDiscHal(self, systemBus):
+        """Waits for the disc to be inserted using HAL.
+        
+        Raises dbus.exceptions.DBusException or common.BurnerException
+        in case of error.
+        """
+        proxy = systemBus.get_object("org.freedesktop.Hal", 
+                                     "/org/freedesktop/Hal/Manager")
+        manager = dbus.Interface(proxy, "org.freedesktop.Hal.Manager")
+        # First check: FreeBSD requires a SCSI address x,y,z for CAM
+        objectPaths = manager.FindDeviceStringMatch("block.freebsd.cam_path",
+                                                    self.device)
+        if objectPaths:
+            # We are under FreeBSD
+            objectPath = objectPaths[0]
+            isCAMPath = True
+        else:
+            isCAMPath = False
+            objectPaths = manager.FindDeviceStringMatch("block.device",
+                                                        self.device)
+            if not objectPaths:
+                raise common.BurnerException("Device %s not in HAL database" %
+                                             self.device)
+            # We only like names containing "storage_serial" because they
+            # are persistent
+            for p in objectPaths:
+                if "storage_serial" in p:
+                    objectPath = p
+                    break
+            if not objectPath:
+                raise common.BurnerException("Cannot find a suitable device "
+                                             "for %s" % self.device)
+        device = systemBus.get_object("org.freedesktop.Hal", objectPath)
+        interface = dbus.Interface(device, "org.freedesktop.Hal.Device")
+        if isCAMPath:
+            # We need the actual device file
+            deviceFile = interface.GetProperty("block.device")
+        else:
+            deviceFile = self.device
+        if interface.GetProperty("info.category") != "storage.cdrom":
+            raise common.BurnerException("Device %s is not a CD/DVD drive" %
+                                         deviceFile)
+        if ((not interface.GetProperty("storage.cdrom.cdr")) and
+            (not interface.GetProperty("storage.cdrom.dvdr"))):
+            raise common.BurnerException("Device %s is not a burner" % 
+                                         deviceFile)
+        ready = False
+        p = "storage.removable.media_available"
+        while not ready:
+            if not interface.GetProperty(p):
+                self.logger.info("Burning %s for %s. Please insert "
+                                 "a blank disk in drive %s" % 
+                                 (self.isoToBurn, self.isoCommitter,
+                                  deviceFile))
+                while not interface.GetProperty(p):
+                    time.sleep(1)
+            # We look for device paths containing the word "empty"
+            objectPaths = manager.FindDeviceStringMatch("block.device",
+                                                        deviceFile)
+            for path in objectPaths:
+                if "empty" in path:
+                    ready = True
+                    break
+            if not ready:
+                self.logger.warning("Inserted disk cannot be burnt. "
+                                    "Please change it.")
+                while interface.GetProperty(p):
+                    time.sleep(1)
+        self.logger.info("Blank disc detected in drive.")
+        return # Good device inserted
+
     def __waitForDisc(self):
         """Waits for the disc to be inserted.
         
@@ -259,36 +367,11 @@ class CustomBurnerClient:
         if self.device is not None:
             try:
                 systemBus = dbus.SystemBus()
-                proxy = systemBus.get_object("org.freedesktop.UDisks", 
-                                             "/org/freedesktop/UDisks")
-                interface = dbus.Interface(proxy, "org.freedesktop.UDisks")
-                objectPath = interface.FindDeviceByDeviceFile(self.device)
-                device = systemBus.get_object("org.freedesktop.UDisks", 
-                                              objectPath)
-                mediaCompatibility = device.Get("", "DriveMediaCompatibility")
-                if ((not "optical_cd_r" in mediaCompatibility) or 
-                    (not "optical_dvd_r" in mediaCompatibility) or
-                    (not "optical_dvd_plus_r" in mediaCompatibility)):
-                    raise common.BurnerException("Device %s is not a CD/DVD "
-                                                 "burner" % self.device)
-                ready = False
-                while not ready:
-                    if not device.Get("", "DeviceIsOpticalDisc"):
-                        self.logger.info("Burning %s for %s. Please insert "
-                                         "a blank disk in drive %s" % 
-                                         (self.isoToBurn, self.isoCommitter,
-                                          self.device))
-                        while not device.Get("", "DeviceIsOpticalDisc"):
-                            time.sleep(1)
-                    if device.Get("", "OpticalDiscIsBlank"):
-                        self.logger.info("Blank disc detected in drive.")
-                        ready = True
-                    else:
-                        self.logger.warning("Inserted disk cannot be burnt."
-                                            "Please change it.")
-                        while device.Get("", "DeviceIsOpticalDisc"):
-                            time.sleep(1)
-                return # Good device inserted
+                names = systemBus.list_names()
+                if "org.freedesktop.UDisks" in names:
+                    return self.__waitForDiscUDisks(systemBus)
+                elif "org.freedesktop.Hal" in names:
+                    return self.__waitForDiscHal(systemBus)
             except dbus.exceptions.DBusException, e:
                 self.logger.error(e)
             except common.BurnerException, e:
@@ -365,8 +448,7 @@ def BurnerMain():
     # Cmd-line arguments
     parser = optparse.OptionParser()
     # Default values
-    parser.set_defaults(name="Toaster",
-                        server="127.0.0.1",
+    parser.set_defaults(server="127.0.0.1",
                         directory=".",
                         port=1235,
                         speed=4,
@@ -413,6 +495,14 @@ def BurnerMain():
                                  "(options -S and -D) or the burn command "
                                  "(option -c)\n")
                 sys.exit(1)
+        if opts.name is None:
+            opts.name = socket.gethostname()
+            if not opts.name:
+                sys.stderr.write("Please specify the burner name "
+                                 "(option -n)\n")
+                sys.exit(1)
+            if opts.device is not None:
+                opts.name = "%s-%s" % (opts.name, opts.device)
         burner = CustomBurnerClient(opts.name, opts.directory,
                                     opts.port, opts.server, opts.serverport)
         if opts.command:
